@@ -27,9 +27,6 @@
 WiFiClient ethClient;
 static bool ethConnected = false;
 
-const char* ssid = "12";
-const char* password = "12345678";
-
 AsyncWebServer server(80);
 
 PubSubClient mqttClient(ethClient);
@@ -98,7 +95,6 @@ void WiFiEvent(WiFiEvent_t event) {
     switch (event) {
     case SYSTEM_EVENT_ETH_START:
         DEBUG_PRINTLN("ETH Started");
-        //set eth hostname here
         ETH.setHostname(HOSTNAME);
         break;
     case SYSTEM_EVENT_ETH_CONNECTED:
@@ -128,37 +124,6 @@ void WiFiEvent(WiFiEvent_t event) {
         Serial.println("ETH Stopped");
         ethConnected = false;
         break;
-
-//remove later!
-    case SYSTEM_EVENT_STA_START:
-        DEBUG_PRINTLN("WIFI Started");
-        //set eth hostname here
-        WiFi.setHostname(HOSTNAME);
-        break;
-    case SYSTEM_EVENT_STA_CONNECTED:
-        DEBUG_PRINTLN("WIFI Connected");
-        ethConnected = true;
-        break;
-    case SYSTEM_EVENT_STA_GOT_IP:
-        DEBUG_PRINT("WIFI MAC: ");
-        DEBUG_PRINT(WiFi.macAddress());
-        DEBUG_PRINT(", IPv4: ");
-        DEBUG_PRINTLN(WiFi.localIP());
-        ethConnected = true;
-
-        //mqttConnect();
-        break;
-    case SYSTEM_EVENT_STA_DISCONNECTED:
-        Serial.println("ETH Disconnected");
-        ethConnected = false;
-        break;
-    case SYSTEM_EVENT_STA_STOP:
-        Serial.println("ETH Stopped");
-        ethConnected = false;
-        break;
-//remove later!
-
-
     default:
         break;
     }
@@ -242,10 +207,7 @@ void setup()
     DEBUG_PRINTLN();
  
     WiFi.onEvent(WiFiEvent);
-    //Remove later!!!
-    DEBUG_PRINTLN("Starting WIFI");
-    WiFi.begin(ssid, password);
-    //ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
+    ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/config.html", String(), false, webServerPlaceholderProcessor);
