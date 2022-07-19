@@ -18,6 +18,7 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <ESP32TimerInterrupt.h>
+#include <AsyncElegantOTA.h>
 
 /*
 #include <MQTTClient.h>
@@ -43,7 +44,9 @@ float temperatures[16];
 
 uint8_t ledMode = 0;
 
-ESP32Timer ITimer0(0);
+ESP32Timer ethernetLedTimer(0);
+ESP32Timer mqttLedTimer(1);
+ESP32Timer oneWireLedTimer(2);
 
 void ethernetLed(uint8_t mode) {
     digitalWrite(ETHERNET_LED, mode);
@@ -55,6 +58,44 @@ void mqttLed(uint8_t mode) {
 
 void oneWireLed(uint8_t mode) {
     digitalWrite(ONEWIRE_LED, mode);
+}
+
+bool IRAM_ATTR mqtteLedBlink(void* timerNo)
+{
+    static bool toggle = false;
+
+    //timer interrupt toggles pin LED_BUILTIN
+    mqttLed(toggle);
+    toggle = !toggle;
+
+    return true;
+}
+
+bool IRAM_ATTR ethernetLedBlink(void* timerNo)
+{
+    static bool toggle = false;
+
+    //timer interrupt toggles pin LED_BUILTIN
+    ethernetLed(toggle);
+    toggle = !toggle;
+
+    return true;
+}
+
+bool IRAM_ATTR oneWireLedBlink(void* timerNo)
+{
+    static bool toggle = false;
+
+    //timer interrupt toggles pin LED_BUILTIN
+    oneWireLed(toggle);
+    toggle = !toggle;
+
+    return true;
+}
+
+bool IRAM_ATTR oneWireLedOff(void* timerNo) {
+    oneWireLed(LOW);
+    return false;
 }
 
 void updateOutputs(byte outputs) {
@@ -93,15 +134,17 @@ void mqttCallback(char* topic, byte* payload, const unsigned int len) {
 
 void WiFiEvent(WiFiEvent_t event) {
     switch (event) {
-    case SYSTEM_EVENT_ETH_START:
+    case ARDUINO_EVENT_ETH_START:
         DEBUG_PRINTLN("ETH Started");
         ETH.setHostname(HOSTNAME);
         break;
-    case SYSTEM_EVENT_ETH_CONNECTED:
+    case ARDUINO_EVENT_ETH_CONNECTED:
         DEBUG_PRINTLN("ETH Connected");
         ethConnected = true;
+        ethernetLedTimer.detachInterrupt();
+        ethernetLedTimer.attachInterrupt(4, ethernetLedBlink);
         break;
-    case SYSTEM_EVENT_ETH_GOT_IP:
+    case ARDUINO_EVENT_ETH_GOT_IP:
         DEBUG_PRINT("ETH MAC: ");
         DEBUG_PRINT(ETH.macAddress());
         DEBUG_PRINT(", IPv4: ");
@@ -113,14 +156,15 @@ void WiFiEvent(WiFiEvent_t event) {
         DEBUG_PRINT(ETH.linkSpeed());
         DEBUG_PRINTLN("Mbps");
         ethConnected = true;
-
+        ethernetLedTimer.detachInterrupt();
+        ethernetLed(HIGH);
         //mqttConnect();
         break;
-    case SYSTEM_EVENT_ETH_DISCONNECTED:
+    case ARDUINO_EVENT_ETH_DISCONNECTED:
         Serial.println("ETH Disconnected");
         ethConnected = false;
         break;
-    case SYSTEM_EVENT_ETH_STOP:
+    case ARDUINO_EVENT_ETH_STOP:
         Serial.println("ETH Stopped");
         ethConnected = false;
         break;
@@ -150,15 +194,23 @@ String webServerPlaceholderProcessor(const String& placeholder) {
     return retValue;
 }
 
-bool IRAM_ATTR TimerHandler0(void* timerNo)
-{
-    static bool toggle = false;
+void oneWireBlinkDetectedSensors(uint8_t sensorsCount) {
+    oneWireLed(LOW);
+    delay(500);
+    for (uint8_t i = 0; i < sensorsCount; i++) {
+        oneWireLed(HIGH);
+        delay(500);
+        oneWireLed(LOW);
+        delay(500);
+    }
+    oneWireLed(LOW);
+    delay(500);
+}
 
-    //timer interrupt toggles pin LED_BUILTIN
-    oneWireLed(toggle);
-    toggle = !toggle;
-
-    return true;
+void requestTemperatures() {
+    oneWireLed(HIGH);
+    oneWireLedTimer.attachInterrupt(16, oneWireLedOff);
+    sensors.requestTemperatures();
 }
 
 void setup()
@@ -175,8 +227,6 @@ void setup()
     mqttLed(LOW);
     oneWireLed(LOW);
 
-    ITimer0.attachInterrupt(0.5, TimerHandler0);
-    
     updateOutputs(0);
 
     Serial.begin(115200);
@@ -189,11 +239,12 @@ void setup()
         return;
     }
 
+    oneWireLedTimer.attachInterrupt(8, oneWireLedBlink);
     sensors.begin();
     sensorsCount = sensors.getDS18Count();
     if (sensorsCount > 0) {
-        ITimer0.detachInterrupt();
-        oneWireLed(HIGH);
+        oneWireLedTimer.detachInterrupt();
+        oneWireBlinkDetectedSensors(sensorsCount);
     }
 
     DEBUG_PRINT("Detected sensors: "); DEBUG_PRINTDEC(sensorsCount); DEBUG_PRINTLN();
@@ -206,6 +257,8 @@ void setup()
     }
     DEBUG_PRINTLN();
  
+
+    ethernetLedTimer.attachInterrupt(8, ethernetLedBlink);
     WiFi.onEvent(WiFiEvent);
     ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
 
@@ -215,6 +268,7 @@ void setup()
     server.on("/default.css", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/default.css", "text/css");
     });
+    AsyncElegantOTA.begin(&server);
     server.begin();
 
     mqttClient.setServer(MQTT_URL, MQTT_PORT);
@@ -233,7 +287,7 @@ void loop()
         //mqttConnect();
     }
 
-    sensors.requestTemperatures();
+    requestTemperatures();
     for (uint8_t i = 0; i < sensorsCount; i++) {
         temperatures[i] = sensors.getTempC(sensorAddresses[i]);
     }
