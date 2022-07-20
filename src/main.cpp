@@ -142,7 +142,7 @@ void WiFiEvent(WiFiEvent_t event) {
         DEBUG_PRINTLN("ETH Connected");
         ethConnected = true;
         ethernetLedTimer.detachInterrupt();
-        ethernetLedTimer.attachInterrupt(4, ethernetLedBlink);
+        ethernetLedTimer.attachInterruptInterval(LED_BLINK_MEDIUM, ethernetLedBlink);
         break;
     case ARDUINO_EVENT_ETH_GOT_IP:
         DEBUG_PRINT("ETH MAC: ");
@@ -208,8 +208,10 @@ void oneWireBlinkDetectedSensors(uint8_t sensorsCount) {
 }
 
 void requestTemperatures() {
+    /* TODO: Uncomment for production
     oneWireLed(HIGH);
-    oneWireLedTimer.attachInterrupt(16, oneWireLedOff);
+    oneWireLedTimer.attachInterruptInterval(LED_BLINK_FAST, oneWireLedOff);
+    */
     sensors.requestTemperatures();
 }
 
@@ -239,11 +241,11 @@ void setup()
         return;
     }
 
-    oneWireLedTimer.attachInterrupt(8, oneWireLedBlink);
+    oneWireLedTimer.attachInterruptInterval(LED_BLINK_FAST, oneWireLedBlink);
     sensors.begin();
     sensorsCount = sensors.getDS18Count();
+    oneWireLedTimer.detachInterrupt();
     if (sensorsCount > 0) {
-        oneWireLedTimer.detachInterrupt();
         oneWireBlinkDetectedSensors(sensorsCount);
     }
 
@@ -258,7 +260,7 @@ void setup()
     DEBUG_PRINTLN();
  
 
-    ethernetLedTimer.attachInterrupt(8, ethernetLedBlink);
+    ethernetLedTimer.attachInterruptInterval(LED_BLINK_FAST, ethernetLedBlink);
     WiFi.onEvent(WiFiEvent);
     ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
 
@@ -301,33 +303,4 @@ void loop()
         outputs = 0;
         updateOutputs(outputs);
     }
-
-/*
-    switch (ledMode)
-    {
-    case 0:
-        DEBUG_PRINT(ledMode);
-        digitalWrite(ETHERNET_LED, HIGH);
-        digitalWrite(MQTT_LED, LOW);
-        digitalWrite(ONEWIRE_LED, LOW);
-        ledMode++;
-        break;
-    case 1:
-        DEBUG_PRINT(ledMode);
-        digitalWrite(ETHERNET_LED, LOW);
-        digitalWrite(MQTT_LED, HIGH);
-        digitalWrite(ONEWIRE_LED, LOW);
-        ledMode++;
-        break;
-    case 2:
-        DEBUG_PRINT(ledMode);
-        digitalWrite(ETHERNET_LED, LOW);
-        digitalWrite(MQTT_LED, LOW);
-        digitalWrite(ONEWIRE_LED, HIGH);
-        ledMode = 0;
-        break;
-    default:
-        break;
-    }
-*/
 }

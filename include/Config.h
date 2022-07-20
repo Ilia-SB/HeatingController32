@@ -11,6 +11,11 @@
 #define MQTT_LED		12
 #define ONEWIRE_LED		13
 
+//Leds
+#define LED_BLINK_FAST		125000.0f	//microseconds
+#define LED_BLINK_MEDIUM	250000.0f
+#define LED_BLINK_SLOW		500000.0f
+
 //Ethernet
 #ifdef ETH_CLK_MODE
 	#undef ETH_CLK_MODE
