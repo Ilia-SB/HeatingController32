@@ -60,7 +60,7 @@ void oneWireLed(uint8_t mode) {
     digitalWrite(ONEWIRE_LED, mode);
 }
 
-bool IRAM_ATTR mqtteLedBlink(void* timerNo)
+bool IRAM_ATTR mqttLedBlink(void* timerNo)
 {
     static bool toggle = false;
 
@@ -105,16 +105,23 @@ void updateOutputs(byte outputs) {
 }
 
 bool mqttConnect() {
+    mqttLedTimer.attachInterruptInterval(LED_BLINK_FAST, mqttLedBlink);
     if (!ethConnected) {
+        mqttLedTimer.detachInterrupt();
+        mqttLed(LOW);
         return false;
     }
     if (mqttClient.connect(HOSTNAME)) {
         DEBUG_PRINTLN("MQTT connected");
         mqttClient.subscribe(COMMAND_TOPIC);
+        mqttLedTimer.detachInterrupt();
+        mqttLed(HIGH);
         return true;
     }
     else {
         DEBUG_PRINTLN("MQTT connect failed");
+        mqttLedTimer.detachInterrupt();
+        mqttLed(LOW);
         return false;
     }
 }

@@ -30,10 +30,10 @@
 const char* HOSTNAME = "HeatingController32";
 
 //MQTT
-const char* MQTT_URL = "192.168.0.3";
+const char* MQTT_URL = "192.168.1.3";
 const int MQTT_PORT = 1883;
-const char* COMMAND_TOPIC = "cmnd/heating";
-const char* STATUS_TOPIC = "tele/heating";
+const char* COMMAND_TOPIC = "test/cmnd/heating";
+const char* STATUS_TOPIC = "test/tele/heating";
 
 #define NUMBER_OF_HEATERS 10
 //const int pins[NUMBER_OF_HEATERS] = { 4,5,6,7,8,9,17,16,15,14 }; /*pins that control relays*/
