@@ -19,6 +19,7 @@
 #include <ArduinoJson.h>
 #include <ESP32TimerInterrupt.h>
 #include <AsyncElegantOTA.h>
+#include <ArduinoJson.h>
 
 /*
 #include <MQTTClient.h>
@@ -180,9 +181,9 @@ void WiFiEvent(WiFiEvent_t event) {
     }
 }
 
-String byteArrayToHexString(const uint8_t* bytes) {
+String byteArrayToHexString(const uint8_t* bytes, uint8_t len = 8) {
     String string = "";
-    for (uint8_t i = 0; i < 8; i++) {
+    for (uint8_t i = 0; i < len; i++) {
         if (bytes[i] < 16) string += "0";
         string += String((unsigned int)bytes[i], (unsigned char)16U) + " ";
     }
@@ -220,6 +221,39 @@ void requestTemperatures() {
     oneWireLedTimer.attachInterruptInterval(LED_BLINK_FAST, oneWireLedOff);
     */
     sensors.requestTemperatures();
+}
+
+void saveState(HeaterItem& heaterItem) {
+    //String((unsigned int)bytes[i], (unsigned char)16U)
+    const String fileName = "/item" + byteArrayToHexString(heaterItem.address);
+    File file = SPIFFS.open(fileName, FILE_WRITE, true);
+    
+    StaticJsonDocument<256> doc;
+    doc["address"] = heaterItem.address;
+    doc["isEnabled"] = heaterItem.isEnabled;
+    doc["sensorAddress"] = byteArrayToHexString(heaterItem.sensorAddress);
+    doc["port"] = heaterItem.port;
+    doc["isAuto"] = heaterItem.isAuto;
+    doc["powerConsumption"] = heaterItem.powerConsumption;
+    doc["isOn"] = heaterItem.isOn;
+    doc["priority"] = heaterItem.priority;
+    doc["isConnected"] = heaterItem.isConnected;
+    doc["targetTemperature"] = heaterItem.getTargetTemperature();
+    doc["temperatureAdjust"] = heaterItem.getTemperatureAdjust();
+
+#ifdef DEBUG
+    DEBUG_PRINTLN("Saving settings to: " + fileName);
+    char output[256];
+    serializeJson(doc, output);
+    DEBUG_PRINTLN(output);
+#endif
+
+    //serializeJson(doc, file);
+    file.close();
+}
+
+void loadState() {
+
 }
 
 void setup()

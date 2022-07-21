@@ -9,13 +9,14 @@
 	#include "WProgram.h"
 #endif
 
-#define ADDR_LEN 16
+#define ADDR_LEN 6
 #define SENSOR_ADDR_LEN	8
 
 class HeaterItem
 {
 	//variables
 public:
+	char* address[ADDR_LEN];
 	boolean isEnabled;
 	byte sensorAddress[SENSOR_ADDR_LEN];
 	byte port;
@@ -40,7 +41,6 @@ public:
 	~HeaterItem();
 	bool operator>(const HeaterItem& c);
 	//HeaterItem& operator=( const HeaterItem &c );
-	char address[ADDR_LEN];
 	void setTemperature(float temp);
 	float getTemperature();
 	//void getTemperatureBytes(byte* array);
