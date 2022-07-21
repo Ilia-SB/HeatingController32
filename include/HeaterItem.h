@@ -9,14 +9,14 @@
 	#include "WProgram.h"
 #endif
 
-#define ADDR_LEN 6
+#define ADDR_LEN 7 //6 chars + /n
 #define SENSOR_ADDR_LEN	8
 
 class HeaterItem
 {
 	//variables
 public:
-	char* address[ADDR_LEN];
+	char address[ADDR_LEN];
 	boolean isEnabled;
 	byte sensorAddress[SENSOR_ADDR_LEN];
 	byte port;

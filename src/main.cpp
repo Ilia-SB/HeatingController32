@@ -225,7 +225,10 @@ void requestTemperatures() {
 
 void saveState(HeaterItem& heaterItem) {
     //String((unsigned int)bytes[i], (unsigned char)16U)
-    const String fileName = "/item" + byteArrayToHexString(heaterItem.address);
+    char fileName[12] = "";
+    strcat(fileName, "/item");
+    strcat(fileName, heaterItem.address);
+    
     File file = SPIFFS.open(fileName, FILE_WRITE, true);
     
     StaticJsonDocument<256> doc;
@@ -242,7 +245,7 @@ void saveState(HeaterItem& heaterItem) {
     doc["temperatureAdjust"] = heaterItem.getTemperatureAdjust();
 
 #ifdef DEBUG
-    DEBUG_PRINTLN("Saving settings to: " + fileName);
+    DEBUG_PRINT("Saving settings to: "); DEBUG_PRINTLN(fileName);
     char output[256];
     serializeJson(doc, output);
     DEBUG_PRINTLN(output);
