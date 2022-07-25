@@ -181,13 +181,13 @@ uint8_t OneWire::reset(void)
 	DIRECT_WRITE_LOW(reg, mask);
 	DIRECT_MODE_OUTPUT(reg, mask);	// drive output low
 	interrupts();
-	delayMicroseconds(630); //630 works for 5
+	delayMicroseconds(960); // maximum specifies in protocol
 	noInterrupts();
 	DIRECT_MODE_INPUT(reg, mask);	// allow it to float
-	delayMicroseconds(70); //70 works for 5
+	delayMicroseconds(70); // slave responds  after 15-60us and keeps low for 60-240us. need to measure response in 60-75us.
 	r = !DIRECT_READ(reg, mask);
 	interrupts();
-	delayMicroseconds(420);
+	delayMicroseconds(415); // whole rx should be 480us minimum. 70 + 415 = 485
 	return r;
 }
 
@@ -200,22 +200,22 @@ void OneWire::write_bit(uint8_t v)
 	IO_REG_TYPE mask IO_REG_MASK_ATTR = bitmask;
 	volatile IO_REG_TYPE *reg IO_REG_BASE_ATTR = baseReg;
 
-	if (v & 1) {
+	if (v & 1) { //write 1
 		noInterrupts();
 		DIRECT_WRITE_LOW(reg, mask);
 		DIRECT_MODE_OUTPUT(reg, mask);	// drive output low
-		delayMicroseconds(14);
+		delayMicroseconds(7); // initiate write
 		DIRECT_WRITE_HIGH(reg, mask);	// drive output high
 		interrupts();
-		delayMicroseconds(106);
-	} else {
+		delayMicroseconds(58); // whole frame + pause = 7 + 58 = 65
+	} else { //write 0
 		noInterrupts();
 		DIRECT_WRITE_LOW(reg, mask);
 		DIRECT_MODE_OUTPUT(reg, mask);	// drive output low
-		delayMicroseconds(90);
+		delayMicroseconds(60);
 		DIRECT_WRITE_HIGH(reg, mask);	// drive output high
 		interrupts();
-		delayMicroseconds(30);
+		delayMicroseconds(5); //delay between frames. whole frame + pause = 60 + 5 = 65
 	}
 }
 
@@ -231,13 +231,13 @@ uint8_t OneWire::read_bit(void)
 
 	noInterrupts();
 	DIRECT_MODE_OUTPUT(reg, mask);
-	DIRECT_WRITE_LOW(reg, mask);
+	DIRECT_WRITE_LOW(reg, mask); // drive output low
 	delayMicroseconds(2);
-	DIRECT_MODE_INPUT(reg, mask);	// let pin float, pull up will raise
-	delayMicroseconds(12);
+	DIRECT_MODE_INPUT(reg, mask);	// let pin float
+	delayMicroseconds(5);
 	r = DIRECT_READ(reg, mask);
 	interrupts();
-	delayMicroseconds(76);
+	delayMicroseconds(58); //whole frame = 7 + 3 + 140 = 150
 	return r;
 }
 
