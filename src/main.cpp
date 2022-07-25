@@ -3,7 +3,7 @@
                 https://sautter.com/blog/ethernet-on-esp32-using-lan8720/
 */
 
-
+#define BUILD_NO "25071635"
 
 #include <Arduino.h>
 #include "Config.h"
@@ -198,6 +198,9 @@ String webServerPlaceholderProcessor(const String& placeholder) {
         for (uint8_t i = 0; i < sensorsCount; i++) {
             retValue += "<p>" + byteArrayToHexString(sensorAddresses[i]) + " : " + String(temperatures[i]) + "</p>";
         }
+    }
+    if (placeholder == "BUILD_NO") {
+        retValue = BUILD_NO;
     }
     return retValue;
 }
