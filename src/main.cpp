@@ -3,8 +3,7 @@
                 https://sautter.com/blog/ethernet-on-esp32-using-lan8720/
 */
 
-#define BUILD_NO "25071635"
-
+#include <version.h>
 #include <Arduino.h>
 #include "Config.h"
 #include "HeaterItem.h"
@@ -200,7 +199,7 @@ String webServerPlaceholderProcessor(const String& placeholder) {
         }
     }
     if (placeholder == "BUILD_NO") {
-        retValue = BUILD_NO;
+        retValue = VERSION;
     }
     return retValue;
 }

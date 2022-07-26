@@ -10,6 +10,14 @@ fieldset {
 p {
     margin: 0.5em 0;
 }
+    .build-no {
+        color:#eaeaea;
+        position: fixed;
+        bottom: 0;
+        width:99%;
+        text-align: right;
+        font-size: 10px
+    }
 
 input {
     width: 100%;
