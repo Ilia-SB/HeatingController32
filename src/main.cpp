@@ -98,9 +98,10 @@ bool IRAM_ATTR oneWireLedOff(void* timerNo) {
     return false;
 }
 
-void updateOutputs(byte outputs) {
+void updateOutputs(uint16_t outputs) {
     digitalWrite(LS_STB, LOW);
     shiftOut(LS_DATA, LS_CLK, LSBFIRST, outputs);
+    shiftOut(LS_DATA, LS_CLK, LSBFIRST, outputs >> 8);
     digitalWrite(LS_STB, HIGH);
 }
 
@@ -209,8 +210,10 @@ void oneWireBlinkDetectedSensors(uint8_t sensorsCount) {
     delay(500);
     for (uint8_t i = 0; i < sensorsCount; i++) {
         oneWireLed(HIGH);
+        updateOutputs(0xFFFF);
         delay(500);
         oneWireLed(LOW);
+        updateOutputs(0x0);
         delay(500);
     }
     oneWireLed(LOW);
