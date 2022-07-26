@@ -210,9 +210,11 @@ void oneWireBlinkDetectedSensors(uint8_t sensorsCount) {
     delay(500);
     for (uint8_t i = 0; i < sensorsCount; i++) {
         oneWireLed(HIGH);
+        //TODO: remove
         updateOutputs(0xFFFF);
         delay(500);
         oneWireLed(LOW);
+        //TODO: remove
         updateOutputs(0x0);
         delay(500);
     }
