@@ -100,9 +100,18 @@ bool IRAM_ATTR oneWireLedOff(void* timerNo) {
 
 void updateOutputs(uint16_t outputs) {
     digitalWrite(LS_STB, LOW);
-    shiftOut(LS_DATA, LS_CLK, LSBFIRST, outputs);
-    shiftOut(LS_DATA, LS_CLK, LSBFIRST, outputs >> 8);
+    shiftOut(LS_DATA, LS_CLK, MSBFIRST, outputs >> 8);
+    shiftOut(LS_DATA, LS_CLK, MSBFIRST, outputs);
     digitalWrite(LS_STB, HIGH);
+}
+
+void setPorts(boolean ports[NUMBER_OF_PORTS]) {
+    uint16_t output = 0;
+    for (uint8_t i=0; i<NUMBER_OF_PORTS; i++) {
+        if (ports[i])
+            bitSet(output, i);
+    }
+    updateOutputs(output);
 }
 
 bool mqttConnect() {
@@ -271,6 +280,10 @@ void setup()
     pinMode(LS_DATA, OUTPUT);
     pinMode(LS_CLK, OUTPUT);
     pinMode(LS_STB, OUTPUT);
+    pinMode(LS_OE, OUTPUT);
+
+    updateOutputs(0);
+    digitalWrite(LS_OE, HIGH); //enable output pins on shift register
 
     ethernetLed(LOW);
     mqttLed(LOW);
@@ -341,13 +354,4 @@ void loop()
         temperatures[i] = sensors.getTempC(sensorAddresses[i]);
     }
     delay(1000);
-
-    if (outputs == 0) {
-        outputs = 255;
-        updateOutputs(outputs);
-    }
-    else {
-        outputs = 0;
-        updateOutputs(outputs);
-    }
 }
