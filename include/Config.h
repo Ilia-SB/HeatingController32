@@ -43,6 +43,7 @@ const char* STATUS_TOPIC = "test/tele/heating";
 #define LS_DATA		15
 #define LS_CLK		2
 #define LS_STB		4
+#define LS_OE		33
 
 //#define CM_SENSOR	3
 //#define I2C_ADDRESS 0x01
