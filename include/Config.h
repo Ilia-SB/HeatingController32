@@ -36,6 +36,7 @@ const char* COMMAND_TOPIC = "test/cmnd/heating";
 const char* STATUS_TOPIC = "test/tele/heating";
 
 #define NUMBER_OF_HEATERS 10
+#define NUMBER_OF_PORTS	  16
 //const int pins[NUMBER_OF_HEATERS] = { 4,5,6,7,8,9,17,16,15,14 }; /*pins that control relays*/
 
 #define SENSOR 16 //Temperature sensors pin
@@ -43,6 +44,7 @@ const char* STATUS_TOPIC = "test/tele/heating";
 #define LS_DATA		15
 #define LS_CLK		2
 #define LS_STB		4
+#define LS_OE		33
 
 //#define CM_SENSOR	3
 //#define I2C_ADDRESS 0x01
