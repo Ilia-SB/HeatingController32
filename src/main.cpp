@@ -6,6 +6,7 @@
 #include <version.h>
 #include <Arduino.h>
 #include "Config.h"
+#include "Utils.h"
 #include "HeaterItem.h"
 #include "DebugPrint.h"
 #include <SPIFFS.h>
@@ -190,22 +191,18 @@ void WiFiEvent(WiFiEvent_t event) {
     }
 }
 
-String byteArrayToHexString(const uint8_t* bytes, uint8_t len = 8) {
-    String string = "";
-    for (uint8_t i = 0; i < len; i++) {
-        if (bytes[i] < 16) string += "0";
-        string += String((unsigned int)bytes[i], (unsigned char)16U) + " ";
-    }
-    string.toUpperCase();
-    return string;
-}
-
 String webServerPlaceholderProcessor(const String& placeholder) {
     String retValue = "";
     if (placeholder == "SENSOR_ADDR") {
         retValue += "<p>Sensors count: " + String(sensorsCount) + "</p>";
         for (uint8_t i = 0; i < sensorsCount; i++) {
-            retValue += "<p>" + byteArrayToHexString(sensorAddresses[i]) + " : " + String(temperatures[i]) + "</p>";
+            retValue += "<p>";
+            String sensorAddress;
+            byteArrayToHexString(sensorAddresses[i], SENSOR_ADDR_LEN, sensorAddress);
+            retValue += sensorAddress;
+            retValue += " : ";
+            retValue += String(temperatures[i]);
+            retValue += "</p>";
         }
     }
     if (placeholder == "BUILD_NO") {
@@ -246,7 +243,9 @@ void saveState(HeaterItem& heaterItem) {
     StaticJsonDocument<256> doc;
     doc["address"] = heaterItem.address;
     doc["isEnabled"] = heaterItem.isEnabled;
-    doc["sensorAddress"] = byteArrayToHexString(heaterItem.sensorAddress);
+    
+    //TODO: restore this line
+    //doc["sensorAddress"] = byteArrayToHexString(heaterItem.sensorAddress);
     doc["port"] = heaterItem.port;
     doc["isAuto"] = heaterItem.isAuto;
     doc["powerConsumption"] = heaterItem.powerConsumption;
@@ -312,7 +311,9 @@ void setup()
     DEBUG_PRINT("Detected sensors: "); DEBUG_PRINTDEC(sensorsCount); DEBUG_PRINTLN();
     for (uint8_t i = 0; i < sensorsCount; i++) {
         sensors.getAddress(sensorAddresses[i], i);
-        DEBUG_PRINT(byteArrayToHexString(sensorAddresses[i]));
+        String sensorAddress;
+        byteArrayToHexString(sensorAddresses[i], SENSOR_ADDR_LEN, sensorAddress);
+        DEBUG_PRINT(sensorAddress);
         DEBUG_PRINT(" : ");
         temperatures[i] = sensors.getTempC(sensorAddresses[i]);
         DEBUG_PRINT(temperatures[i]); DEBUG_PRINTLN();
