@@ -270,6 +270,12 @@ void loadState() {
 
 }
 
+void processSettingsForm(AsyncWebServerRequest* request) {
+    if (request->hasParam("name")) {
+        String var = request->getParam("name")->value();
+    }
+}
+
 void setup()
 {
     pinMode(ETHERNET_LED, OUTPUT);
@@ -330,6 +336,12 @@ void setup()
     });
     server.on("/default.css", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/default.css", "text/css");
+    });
+    server.on("/settings.html", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
+    });
+    server.on("/settings.html/get", HTTP_GET, [](AsyncWebServerRequest* request) {
+        processSettingsForm(request);
     });
     AsyncElegantOTA.begin(&server);
     server.begin();
