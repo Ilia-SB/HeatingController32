@@ -1,51 +1,113 @@
-"<!DOCTYPE HTML>"
-"<html>"
-"<head>"
-"<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">"
-"<title>Settings</title>"
-"</head>"
-"<body>"
-"<form method=\"post\" action=\"/savesettings\">"
-"<h2>Settings</h2>"
-"<p></p>"
-"</div>"
-"<ul >"
-"<li>"
-"<label>Unit address </label>"
-"<input type=\"text\" name=\"addr\" maxlength=\"6\" value=\"%s\"/>"
-"</li>"
-"<li>"
-"<label>WiFi SSID </label>"
-"<input type=\"text\" name=\"ssid\" maxlength=\"31\" value=\"%s\"/>"
-"</li>"
-"<li>"
-"<label>WiFi password </label>"
-"<input type=\"password\" name=\"password\" maxlength=\"31\" value=\"%s\"/>"
-"</li>"
-"<li>"
-"<label>WiFi hostname </label>"
-"<input type=\"text\" name=\"hostname\" maxlength=\"31\" value=\"%s\"/>"
-"</li>"
-"<li>"
-"<label>Mqtt host </label>"
-"<input type=\"text\" name=\"mqttHost\" maxlength=\"31\" value=\"%s\"/>"
-"</li>"
-"<li>"
-"<label>Mqtt PORT </label>"
-"<input type=\"text\" name=\"mqttPort\" maxlength=\"5\" value=\"%d\"/>"
-"</li>"
-"<li>"
-"<label>Mqtt user </label>"
-"<input type=\"text\" name=\"mqttUser\" maxlength=\"31\" value=\"%s\"/>"
-"</li>"
-"<li>"
-"<label>Mqtt password </label>"
-"<input maxlength=\"31\" name=\"mqttPassword\" value=\"%s\"/>"
-"</li>"
-"<li>"
-"<input type=\"submit\" name=\"submit\" value=\"Submit\" />"
-"</li>"
-"</ul>"
-"</form>"
-"</body>"
-"</html>"
+<!DOCTYPE HTML>
+<html>
+<head>
+    <meta http-equiv=Content-Type content=text/html; charset=UTF-8>
+    <link rel=stylesheet href=default.css>
+    <title>HeatingController32 settigs</title>
+    <style>
+        div,fieldset,input,select{padding:5px;font-size:1em;}
+        fieldset{background:#4f4f4f;}
+        p{margin:0.5em 0;}
+        input{width:100%;box-sizing:border-box;-webkit-box-sizing:border-box;-moz-box-sizing:border-box;background:#dddddd;color:#000000;}
+        input[type=checkbox],input[type=radio]{width:1em;margin-right:6px;vertical-align:-1px;}
+        input[type=range]{width:99%;}
+        select{width:100%;background:#dddddd;color:#000000;}
+        textarea{resize:vertical;width:98%;height:318px;padding:5px;overflow:auto;background:#1f1f1f;color:#65c115;}
+        body{text-align:center;font-family:verdana,sans-serif;background:#252525;}
+        td{padding:0px;}
+        button{border:0;border-radius:0.3rem;background:#1fa3ec;color:#faffff;line-height:2.4rem;font-size:1.2rem;width:100%;-webkit-transition-duration:0.4s;transition-duration:0.4s;cursor:pointer;}
+        button:hover{background:#0e70a4;}
+            .bred{background:#d43535;}
+            .bred:hover{background:#931f1f;}
+            .bgrn{background:#47c266;}
+            .bgrn:hover{background:#5aaf6f;}
+        a{color:#1fa3ec;text-decoration:none;}
+            .p{float:left;text-align:left;}
+            .q{float:right;text-align:right;}
+            .r{border-radius:0.3em;padding:2px;margin:6px 2px;}
+    </style>
+</head>
+<body>
+    <div style="display:inline-block; min-width:340px">
+    <div style="color:#eaeaea;">
+        <h3>Settings<h3>
+    </div>
+    <form style="color:#eaeaea;" method="post" action="/settings.html">
+        <p onclick="showHideItem('01')" style="border:0;border-radius:0.3rem;background:#1fa3ec;color:#faffff;line-height:2.4rem;font-size:1.2rem;width:100%;-webkit-transition-duration:0.4s;transition-duration:0.4s;cursor:pointer;">Item_01</p>
+        <fieldset id="item_01" style="display: none;">
+            <div style="color:#eaeaea;">
+                <table>
+                    <tbody>
+                        <tr>
+                            <td style="width:116px">Unit address</td>
+                            <td style="width:146px"><input type=text name=addr maxlength=6 value=%s/></td>
+                        </tr>
+                        <tr>
+                            <td style="width:116px">WiFi SSID</td>
+                            <td style="width:146px"><input type=text name=ssid maxlength=31 value=%s/></td>
+                        </tr>
+                    </tbody>
+                </table>
+                        <p>WiFi password </p>
+                        <input type=password name=password maxlength=31 value=%s/>
+
+                        <p>WiFi hostname </p>
+                        <input type=text name=hostname maxlength=31 value=%s/>
+
+                        <p>Mqtt host </p>
+                        <input type=text name=mqttHost maxlength=31 value=%s/>
+
+                        <p>Mqtt PORT </p>
+                        <input type=text name=mqttPort maxlength=5 value=%d/>
+
+                        <p>Mqtt user </p>
+                        <input type=text name=mqttUser maxlength=31 value=%s/>
+
+                        <p>Mqtt password </p>
+                        <input maxlength=31 name=mqttPassword value=%s/>
+            </div>
+        </fieldset>
+        <p onclick="showHideItem('02')" style="border:0;border-radius:0.3rem;background:#1fa3ec;color:#faffff;line-height:2.4rem;font-size:1.2rem;width:100%;-webkit-transition-duration:0.4s;transition-duration:0.4s;cursor:pointer;">Item_02</p>
+        <fieldset id="item_02" style="display: none;">
+            <div style="color:#eaeaea;">
+
+                        <p>Unit address </p>
+                        <input type=text name=addr maxlength=6 value=%s/>
+
+                        <p>WiFi SSID </p>
+                        <input type=text name=ssid maxlength=31 value=%s/>
+
+                        <p>WiFi password </p>
+                        <input type=password name=password maxlength=31 value=%s/>
+
+                        <p>WiFi hostname </p>
+                        <input type=text name=hostname maxlength=31 value=%s/>
+
+                        <p>Mqtt host </p>
+                        <input type=text name=mqttHost maxlength=31 value=%s/>
+
+                        <p>Mqtt PORT </p>
+                        <input type=text name=mqttPort maxlength=5 value=%d/>
+
+                        <p>Mqtt user </p>
+                        <input type=text name=mqttUser maxlength=31 value=%s/>
+
+                        <p>Mqtt password </p>
+                        <input maxlength=31 name=mqttPassword value=%s/>
+            </div>
+        </fieldset>
+        <button name="save" type="submit" class="button bgrn">Save</button>
+    </form>
+    <script>
+        function showHideItem(itemNumber) {
+            var div = document.getElementById("item_" + itemNumber);
+            if (div.style.display === "none") {
+                div.style.display = "block";
+            } else {
+                div.style.display = "none";
+            }
+        }
+    </script>
+    </div>
+</body>
+</html>
