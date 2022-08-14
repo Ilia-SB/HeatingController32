@@ -193,7 +193,7 @@ void WiFiEvent(WiFiEvent_t event) {
 
 String webServerPlaceholderProcessor(const String& placeholder) {
     String retValue = "";
-    if (placeholder == "SENSOR_ADDR") {
+    if (placeholder.equals("SENSOR_ADDR")) {
         retValue += "<p>Sensors count: " + String(sensorsCount) + "</p>";
         for (uint8_t i = 0; i < sensorsCount; i++) {
             retValue += "<p>";
@@ -205,8 +205,51 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += "</p>";
         }
     }
-    if (placeholder == "BUILD_NO") {
+    if (placeholder.equals("BUILD_NO")) {
         retValue = VERSION;
+    }
+    if (placeholder.equals("ITEMS_SETTINGS")) {
+        for (uint8_t i=0; i< NUMBER_OF_HEATERS; i++){
+            String itemNum;
+            if (i < 10)
+                itemNum += "0";
+            itemNum += String(i);
+            retValue += "<p onclick=\"showHideItem('";
+            retValue += itemNum;
+            retValue += "')\" class=\"item\">Item_";
+            retValue += itemNum;
+            retValue += "</p><fieldset id=\"item_";
+            retValue += itemNum;
+            retValue += " style=\"display: none;\"><div style=\"color:#eaeaea;text-align: left;\"><table><tbody><tr><td style=\"width:116px\">Name</td><td style=\"width:146px\"><input type=text name=addr maxlength=6 value=%s/></td>
+                        </tr>
+                        <tr>
+                            <td style="width:116px">Sensor</td>
+                            <td style="width:146px"><select name=ssid>
+                                <option value="0102030405060708">0102030405060708</option>
+                                <option value="0102030405060708">0102030405060708</option>
+                            </td>                            
+                        </tr>
+                        <tr>
+                            <td style="width:116px">Subtopic</td>
+                            <td style="width:146px"><input type=text name=ssid maxlength=31 value=%s/></td>
+                        </tr>
+                        <tr>
+                            <td style="width:116px">Port</td>
+                            <td style="width:146px"><input type=text name=ssid maxlength=31 value=%s/></td>
+                        </tr>
+                        <tr>
+                            <td style="width:116px">Consumption</td>
+                            <td style="width:146px"><input type=text name=ssid maxlength=31 value=%s/></td>
+                        </tr>
+                        <tr>
+                            <td style="width:116px">Priority</td>
+                            <td style="width:146px"><input type=text name=ssid maxlength=31 value=%s/></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </fieldset>
+        }
     }
     return retValue;
 }

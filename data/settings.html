@@ -8,6 +8,7 @@
         div,fieldset,input,select{padding:5px;font-size:1em;}
         fieldset{background:#4f4f4f;}
         p{margin:0.5em 0;}
+            .item{border:0;border-radius:0.3rem;background:#1fa3ec;color:#faffff;line-height:2.4rem;font-size:1.2rem;width:100%;-webkit-transition-duration:0.4s;transition-duration:0.4s;cursor:pointer;}
         input{width:100%;box-sizing:border-box;-webkit-box-sizing:border-box;-moz-box-sizing:border-box;background:#dddddd;color:#000000;}
         input[type=checkbox],input[type=radio]{width:1em;margin-right:6px;vertical-align:-1px;}
         input[type=range]{width:99%;}
@@ -33,41 +34,44 @@
         <h3>Settings<h3>
     </div>
     <form style="color:#eaeaea;" method="post" action="/settings.html">
-        <p onclick="showHideItem('01')" style="border:0;border-radius:0.3rem;background:#1fa3ec;color:#faffff;line-height:2.4rem;font-size:1.2rem;width:100%;-webkit-transition-duration:0.4s;transition-duration:0.4s;cursor:pointer;">Item_01</p>
+        %ITEMS_SETTINGS%
+        <p onclick="showHideItem('01')" class="item">Item_01</p>
         <fieldset id="item_01" style="display: none;">
-            <div style="color:#eaeaea;">
+            <div style="color:#eaeaea;text-align: left;">
                 <table>
                     <tbody>
                         <tr>
-                            <td style="width:116px">Unit address</td>
+                            <td style="width:116px">Name</td>
                             <td style="width:146px"><input type=text name=addr maxlength=6 value=%s/></td>
                         </tr>
                         <tr>
-                            <td style="width:116px">WiFi SSID</td>
+                            <td style="width:116px">Sensor</td>
+                            <td style="width:146px"><select name=ssid>
+                                <option value="0102030405060708">0102030405060708</option>
+                                <option value="0102030405060708">0102030405060708</option>
+                            </td>                            
+                        </tr>
+                        <tr>
+                            <td style="width:116px">Subtopic</td>
+                            <td style="width:146px"><input type=text name=ssid maxlength=31 value=%s/></td>
+                        </tr>
+                        <tr>
+                            <td style="width:116px">Port</td>
+                            <td style="width:146px"><input type=text name=ssid maxlength=31 value=%s/></td>
+                        </tr>
+                        <tr>
+                            <td style="width:116px">Consumption</td>
+                            <td style="width:146px"><input type=text name=ssid maxlength=31 value=%s/></td>
+                        </tr>
+                        <tr>
+                            <td style="width:116px">Priority</td>
                             <td style="width:146px"><input type=text name=ssid maxlength=31 value=%s/></td>
                         </tr>
                     </tbody>
                 </table>
-                        <p>WiFi password </p>
-                        <input type=password name=password maxlength=31 value=%s/>
-
-                        <p>WiFi hostname </p>
-                        <input type=text name=hostname maxlength=31 value=%s/>
-
-                        <p>Mqtt host </p>
-                        <input type=text name=mqttHost maxlength=31 value=%s/>
-
-                        <p>Mqtt PORT </p>
-                        <input type=text name=mqttPort maxlength=5 value=%d/>
-
-                        <p>Mqtt user </p>
-                        <input type=text name=mqttUser maxlength=31 value=%s/>
-
-                        <p>Mqtt password </p>
-                        <input maxlength=31 name=mqttPassword value=%s/>
             </div>
         </fieldset>
-        <p onclick="showHideItem('02')" style="border:0;border-radius:0.3rem;background:#1fa3ec;color:#faffff;line-height:2.4rem;font-size:1.2rem;width:100%;-webkit-transition-duration:0.4s;transition-duration:0.4s;cursor:pointer;">Item_02</p>
+        <p onclick="showHideItem('02')" class="item">Item_02</p>
         <fieldset id="item_02" style="display: none;">
             <div style="color:#eaeaea;">
 
@@ -96,7 +100,7 @@
                         <input maxlength=31 name=mqttPassword value=%s/>
             </div>
         </fieldset>
-        <button name="save" type="submit" class="button bgrn">Save</button>
+        <button name="save" type="submit" class="bgrn">Save</button>
     </form>
     <script>
         function showHideItem(itemNumber) {
