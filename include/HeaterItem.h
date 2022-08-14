@@ -16,6 +16,8 @@ class HeaterItem
 {
 	//variables
 public:
+	String name;
+	String subtopic;
 	char address[ADDR_LEN];
 	boolean isEnabled;
 	byte sensorAddress[SENSOR_ADDR_LEN];

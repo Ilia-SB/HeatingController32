@@ -33,7 +33,6 @@ AsyncWebServer server(80);
 
 PubSubClient mqttClient(ethClient);
 
-
 OneWire oneWire(SENSOR);
 DallasTemperature sensors(&oneWire);
 
@@ -42,6 +41,8 @@ byte outputs = 0;
 uint8_t sensorsCount;
 DeviceAddress sensorAddresses[16];
 float temperatures[16];
+
+HeaterItem heaterItems[NUMBER_OF_HEATERS];
 
 uint8_t ledMode = 0;
 
@@ -209,46 +210,41 @@ String webServerPlaceholderProcessor(const String& placeholder) {
         retValue = VERSION;
     }
     if (placeholder.equals("ITEMS_SETTINGS")) {
+        String sensors[sensorsCount];
+        for (uint8_t i=0; i<sensorsCount; i++) {
+            byteArrayToHexString(sensorAddresses[i], SENSOR_ADDR_LEN, sensors[i]);
+        }
         for (uint8_t i=0; i< NUMBER_OF_HEATERS; i++){
             String itemNum;
             if (i < 10)
                 itemNum += "0";
             itemNum += String(i);
+
             retValue += "<p onclick=\"showHideItem('";
             retValue += itemNum;
             retValue += "')\" class=\"item\">Item_";
             retValue += itemNum;
-            retValue += "</p><fieldset id=\"item_";
+            retValue += "</p><form style=\"color:#eaeaea;\" method=\"post\" action=\"/settings.html\"><fieldset id=\"item_";
             retValue += itemNum;
-            retValue += " style=\"display: none;\"><div style=\"color:#eaeaea;text-align: left;\"><table><tbody><tr><td style=\"width:116px\">Name</td><td style=\"width:146px\"><input type=text name=addr maxlength=6 value=%s/></td>
-                        </tr>
-                        <tr>
-                            <td style="width:116px">Sensor</td>
-                            <td style="width:146px"><select name=ssid>
-                                <option value="0102030405060708">0102030405060708</option>
-                                <option value="0102030405060708">0102030405060708</option>
-                            </td>                            
-                        </tr>
-                        <tr>
-                            <td style="width:116px">Subtopic</td>
-                            <td style="width:146px"><input type=text name=ssid maxlength=31 value=%s/></td>
-                        </tr>
-                        <tr>
-                            <td style="width:116px">Port</td>
-                            <td style="width:146px"><input type=text name=ssid maxlength=31 value=%s/></td>
-                        </tr>
-                        <tr>
-                            <td style="width:116px">Consumption</td>
-                            <td style="width:146px"><input type=text name=ssid maxlength=31 value=%s/></td>
-                        </tr>
-                        <tr>
-                            <td style="width:116px">Priority</td>
-                            <td style="width:146px"><input type=text name=ssid maxlength=31 value=%s/></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </fieldset>
+            retValue += "\" style=\"display: none;\"><div style=\"color:#eaeaea;text-align: left;\"><table><tbody><tr><td class=\"name\">Name</td><td class=\"value\"><input type=\"text\" name=\"name\" value=\"";
+            retValue += heaterItems[i].name;
+            retValue += "\"></td></tr><tr><td class=\"name\">Sensor</td><td class=\"value\"><select name=\"sensor\">";
+            for (uint8_t i=0; i<sensorsCount; i++){ 
+                retValue += "<option value=\"";
+                retValue += sensors[i];
+                retValue += "\">";
+                retValue += sensors[i];
+                retValue += "</option>";
+            }
+            retValue += "</td></tr><tr><td class=\"name\">Subtopic</td><td class=\"value\"><input type=\"text\" name=\"subtopic\" value=\"";
+            retValue += heaterItems[i].subtopic;
+            retValue += "\"></td></tr><tr><td class=\"name\">Port</td><td class=\"value\"><input type=\"text\" name=\"port\" value=\"";
+            retValue += String(heaterItems[i].port);
+            retValue += "\"></td></tr><tr><td class=\"name\">Consumption</td><td class=\"value\"><input type=\"text\" name=\"consumption\" value=\"";
+            retValue += String(heaterItems[i].powerConsumption);
+            retValue += "\"></td></tr><tr><td class=\"name\">Priority</td><td class=\"value\"><input type=\"text\" name=\"priority\" value=\"";
+            retValue += String(heaterItems[i].priority);
+            retValue += "\"></td></tr></tbody></table><button name=\"save\" type=\"submit\" class=\"bgrn\">Save</button></div></fieldset></form>";
         }
     }
     return retValue;
