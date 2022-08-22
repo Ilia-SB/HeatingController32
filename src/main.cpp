@@ -222,25 +222,57 @@ String webServerPlaceholderProcessor(const String& placeholder) {
 
             retValue += "<p onclick=\"showHideItem('";
             retValue += itemNum;
-            retValue += "')\" class=\"item\">Item_";
-            retValue += itemNum;
+            retValue += "')\" class=\"item\">";
+            if (heaterItems[i].name.equals("")) {
+                retValue += "UnnamedHeater ";
+                retValue += itemNum;
+            }
+            else {
+                retValue += heaterItems[i].name;
+            }
             retValue += "</p><form style=\"color:#eaeaea;\" method=\"post\" action=\"/settings.html\"><fieldset id=\"item_";
             retValue += itemNum;
-            retValue += "\" style=\"display: none;\"><div style=\"color:#eaeaea;text-align: left;\"><table><tbody><tr><td class=\"name\">Name</td><td class=\"value\"><input type=\"text\" name=\"name\" value=\"";
+            retValue += "\" style=\"display: none;\">";
+            retValue += "<input type=\"hidden\" name=\"item\" value=\"";
+            retValue += String(i);
+            retValue += "\">";
+            retValue += "<div style=\"color:#eaeaea;text-align: left;\"><table><tbody><tr><td class=\"name\">Name</td><td class=\"value\"><input type=\"text\" name=\"name\" value=\"";
             retValue += heaterItems[i].name;
             retValue += "\"></td></tr><tr><td class=\"name\">Sensor</td><td class=\"value\"><select name=\"sensor\">";
-            for (uint8_t i=0; i<sensorsCount; i++){ 
+            for (uint8_t j=0; j<sensorsCount; j++){ 
                 retValue += "<option value=\"";
-                retValue += sensors[i];
+                retValue += sensors[j];
                 retValue += "\">";
-                retValue += sensors[i];
+                retValue += sensors[j];
                 retValue += "</option>";
             }
             retValue += "</td></tr><tr><td class=\"name\">Subtopic</td><td class=\"value\"><input type=\"text\" name=\"subtopic\" value=\"";
             retValue += heaterItems[i].subtopic;
-            retValue += "\"></td></tr><tr><td class=\"name\">Port</td><td class=\"value\"><input type=\"text\" name=\"port\" value=\"";
-            retValue += String(heaterItems[i].port);
-            retValue += "\"></td></tr><tr><td class=\"name\">Consumption</td><td class=\"value\"><input type=\"text\" name=\"consumption\" value=\"";
+            retValue += "\"></td></tr><tr><td class=\"name\">Port</td><td class=\"value\"><select name=\"port\">";
+            for (uint8_t j=1; j<NUMBER_OF_HEATERS+1; j++) {
+                retValue += "<option value=\"";
+                retValue += String(j);
+                retValue += "\"";
+                if (j==heaterItems[i].port) {
+                    retValue += " selected=\"selected\"";
+                }
+                retValue += ">";
+                retValue += String(j);
+                retValue += "</option>";
+            }
+            retValue += "</td></tr><tr><td class=\"name\">Phase</td><td class=\"value\"><select name=\"phase\">";
+            for (uint8_t j=0; j<NUMBER_OF_PHASES; j++) {
+                retValue += "<option value=\"";
+                retValue += String(PHASES[j]);
+                retValue += "\"";
+                if (j==heaterItems[i].phase) {
+                    retValue += " selected=\"selected\"";
+                }
+                retValue += ">";
+                retValue += String(PHASES[j]);
+                retValue += "</option>";
+            }
+            retValue += "</td></tr><tr><td class=\"name\">Consumption</td><td class=\"value\"><input type=\"text\" name=\"consumption\" value=\"";
             retValue += String(heaterItems[i].powerConsumption);
             retValue += "\"></td></tr><tr><td class=\"name\">Priority</td><td class=\"value\"><input type=\"text\" name=\"priority\" value=\"";
             retValue += String(heaterItems[i].priority);
@@ -280,12 +312,15 @@ void saveState(HeaterItem& heaterItem) {
     File file = SPIFFS.open(fileName, FILE_WRITE, true);
     
     StaticJsonDocument<256> doc;
+    doc["name"] = heaterItem.name;
     doc["address"] = heaterItem.address;
+    doc["subtopic"] = heaterItem.subtopic;
     doc["isEnabled"] = heaterItem.isEnabled;
     
     //TODO: restore this line
     //doc["sensorAddress"] = byteArrayToHexString(heaterItem.sensorAddress);
     doc["port"] = heaterItem.port;
+    doc["phase"] = heaterItem.phase;
     doc["isAuto"] = heaterItem.isAuto;
     doc["powerConsumption"] = heaterItem.powerConsumption;
     doc["isOn"] = heaterItem.isOn;
@@ -310,9 +345,39 @@ void loadState() {
 }
 
 void processSettingsForm(AsyncWebServerRequest* request) {
-    if (request->hasParam("name")) {
-        String var = request->getParam("name")->value();
+    uint8_t itemNo=0;
+    if (request->hasParam("item")) {
+        String var = request->getParam("item")->value();
+        itemNo = (uint8_t)(var.toInt());
     }
+    else {
+        return;
+    }
+
+    if (request->hasParam("name")) {
+        heaterItems[itemNo].name = request->getParam("name")->value();
+    }
+    if (request->hasParam("sensor")) {
+        //TODO parse hex string to array
+    }
+    if (request->hasParam("subtopic")) {
+        heaterItems[itemNo].subtopic = request->getParam("subtopic")->value();
+    }
+    if (request->hasParam("port")) {
+        heaterItems[itemNo].port = (uint8_t)(request->getParam("port")->value().toInt());
+    }
+    if (request->hasParam("phase")) {
+        heaterItems[itemNo].phase = (uint8_t)(request->getParam("phase")->value().toInt());
+    }
+    if (request->hasParam("consumption")) {
+        heaterItems[itemNo].powerConsumption = (uint16_t)(request->getParam("consumption")->value().toInt());
+    }
+    if (request->hasParam("priority")) {
+        heaterItems[itemNo].priority = (uint8_t)(request->getParam("priority")->value().toInt());
+    }
+
+    saveState(heaterItems[itemNo]);
+    request->redirect("/setings.html");
 }
 
 void setup()

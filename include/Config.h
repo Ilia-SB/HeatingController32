@@ -35,8 +35,10 @@ const int MQTT_PORT = 1883;
 const char* COMMAND_TOPIC = "test/cmnd/heating";
 const char* STATUS_TOPIC = "test/tele/heating";
 
-#define NUMBER_OF_HEATERS 10
+#define NUMBER_OF_HEATERS 16
 #define NUMBER_OF_PORTS	  16
+#define NUMBER_OF_PHASES  2
+const uint8_t PHASES[NUMBER_OF_PHASES] = {1,2};
 //const int pins[NUMBER_OF_HEATERS] = { 4,5,6,7,8,9,17,16,15,14 }; /*pins that control relays*/
 
 #define SENSOR 16 //Temperature sensors pin

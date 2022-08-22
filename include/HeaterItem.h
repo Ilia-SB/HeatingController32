@@ -22,6 +22,7 @@ public:
 	boolean isEnabled;
 	byte sensorAddress[SENSOR_ADDR_LEN];
 	byte port;
+	byte phase;
 	byte pin;
 	boolean isAuto;
 	uint16_t powerConsumption;
