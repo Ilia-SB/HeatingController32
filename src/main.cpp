@@ -223,13 +223,7 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += "<p onclick=\"showHideItem('";
             retValue += itemNum;
             retValue += "')\" class=\"item\">";
-            if (heaterItems[i].name.equals("")) {
-                retValue += "UnnamedHeater ";
-                retValue += itemNum;
-            }
-            else {
-                retValue += heaterItems[i].name;
-            }
+            retValue += heaterItems[i].name;
             retValue += "</p><form style=\"color:#eaeaea;\" method=\"post\" action=\"/settings\"><fieldset id=\"item_";
             retValue += itemNum;
             retValue += "\" style=\"display: none;\">";
@@ -242,14 +236,14 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += "<option value=\"";
             String setSensor;
             byteArrayToHexString(heaterItems[i].sensorAddress, SENSOR_ADDR_LEN, setSensor);
-            retValue += setSensor;
+            retValue += String(-1);
             retValue += "\">";
             retValue += "* ";
             retValue += setSensor;
             retValue += "</option>";
             for (uint8_t j=0; j<sensorsCount; j++){ 
                 retValue += "<option value=\"";
-                retValue += sensors[j];
+                retValue += String(j);
                 retValue += "\">";
                 retValue += sensors[j];
                 retValue += "</option>";
@@ -405,38 +399,41 @@ void loadState(HeaterItem& heaterItem, uint8_t itemNumber) {
 
 void processSettingsForm(AsyncWebServerRequest* request) {
     uint8_t itemNo=0;
-    if (request->hasParam("item")) {
-        String var = request->getParam("item")->value();
+    if (request->hasParam("item", true)) {
+        String var = request->getParam("item", true)->value();
         itemNo = (uint8_t)(var.toInt());
     }
     else {
         return;
     }
 
-    if (request->hasParam("name")) {
-        heaterItems[itemNo].name = request->getParam("name")->value();
+    if (request->hasParam("name", true)) {
+        heaterItems[itemNo].name = request->getParam("name", true)->value();
     }
-    if (request->hasParam("sensor")) {
-        //TODO parse hex string to array
+    if (request->hasParam("sensor", true)) {
+        int8_t sensorNum = (int8_t)(request->getParam("sensor", true)->value().toInt());
+        if (sensorNum >=0) {
+            memcpy(heaterItems[itemNo].sensorAddress, sensorAddresses[sensorNum], SENSOR_ADDR_LEN);
+        }
     }
-    if (request->hasParam("subtopic")) {
-        heaterItems[itemNo].subtopic = request->getParam("subtopic")->value();
+    if (request->hasParam("subtopic", true)) {
+        heaterItems[itemNo].subtopic = request->getParam("subtopic", true)->value();
     }
-    if (request->hasParam("port")) {
-        heaterItems[itemNo].port = (uint8_t)(request->getParam("port")->value().toInt());
+    if (request->hasParam("port", true)) {
+        heaterItems[itemNo].port = (uint8_t)(request->getParam("port", true)->value().toInt());
     }
-    if (request->hasParam("phase")) {
-        heaterItems[itemNo].phase = (uint8_t)(request->getParam("phase")->value().toInt());
+    if (request->hasParam("phase", true)) {
+        heaterItems[itemNo].phase = (uint8_t)(request->getParam("phase", true)->value().toInt());
     }
-    if (request->hasParam("consumption")) {
-        heaterItems[itemNo].powerConsumption = (uint16_t)(request->getParam("consumption")->value().toInt());
+    if (request->hasParam("consumption", true)) {
+        heaterItems[itemNo].powerConsumption = (uint16_t)(request->getParam("consumption", true)->value().toInt());
     }
-    if (request->hasParam("priority")) {
-        heaterItems[itemNo].priority = (uint8_t)(request->getParam("priority")->value().toInt());
+    if (request->hasParam("priority", true)) {
+        heaterItems[itemNo].priority = (uint8_t)(request->getParam("priority", true)->value().toInt());
     }
 
     saveState(heaterItems[itemNo]);
-    request->redirect("/settings");
+    request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
 }
 
 void setup()
@@ -508,9 +505,7 @@ void setup()
     server.on("/settings", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     });
-    server.on("/settings", HTTP_POST, [](AsyncWebServerRequest* request) {
-        processSettingsForm(request);
-    });
+    server.on("/settings", HTTP_POST, processSettingsForm);
     AsyncElegantOTA.begin(&server);
     server.begin();
 

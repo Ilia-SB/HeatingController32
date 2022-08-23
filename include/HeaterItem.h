@@ -3,11 +3,7 @@
 #ifndef _HEATERITEM_h
 #define _HEATERITEM_h
 
-#if defined(ARDUINO) && ARDUINO >= 100
-	#include "Arduino.h"
-#else
-	#include "WProgram.h"
-#endif
+#include "Arduino.h"
 
 //#define ADDR_LEN 7 //6 chars + /n
 #define SENSOR_ADDR_LEN	8
