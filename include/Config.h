@@ -1,6 +1,8 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
+#include <Arduino.h>
+
 #ifdef DEBUG
 	#undef DEBUG
 #endif // !DEBUG
@@ -34,6 +36,9 @@ const char* MQTT_URL = "192.168.1.3";
 const int MQTT_PORT = 1883;
 const char* COMMAND_TOPIC = "test/cmnd/heating";
 const char* STATUS_TOPIC = "test/tele/heating";
+
+//JSON
+#define JSON_DOCUMENT_SIZE 256
 
 #define NUMBER_OF_HEATERS 16
 #define NUMBER_OF_PORTS	  16

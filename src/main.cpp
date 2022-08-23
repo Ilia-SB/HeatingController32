@@ -230,7 +230,7 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             else {
                 retValue += heaterItems[i].name;
             }
-            retValue += "</p><form style=\"color:#eaeaea;\" method=\"post\" action=\"/settings.html\"><fieldset id=\"item_";
+            retValue += "</p><form style=\"color:#eaeaea;\" method=\"post\" action=\"/settings\"><fieldset id=\"item_";
             retValue += itemNum;
             retValue += "\" style=\"display: none;\">";
             retValue += "<input type=\"hidden\" name=\"item\" value=\"";
@@ -239,6 +239,14 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += "<div style=\"color:#eaeaea;text-align: left;\"><table><tbody><tr><td class=\"name\">Name</td><td class=\"value\"><input type=\"text\" name=\"name\" value=\"";
             retValue += heaterItems[i].name;
             retValue += "\"></td></tr><tr><td class=\"name\">Sensor</td><td class=\"value\"><select name=\"sensor\">";
+            retValue += "<option value=\"";
+            String setSensor;
+            byteArrayToHexString(heaterItems[i].sensorAddress, SENSOR_ADDR_LEN, setSensor);
+            retValue += setSensor;
+            retValue += "\">";
+            retValue += "* ";
+            retValue += setSensor;
+            retValue += "</option>";
             for (uint8_t j=0; j<sensorsCount; j++){ 
                 retValue += "<option value=\"";
                 retValue += sensors[j];
@@ -265,7 +273,7 @@ String webServerPlaceholderProcessor(const String& placeholder) {
                 retValue += "<option value=\"";
                 retValue += String(PHASES[j]);
                 retValue += "\"";
-                if (j==heaterItems[i].phase) {
+                if (PHASES[j]==heaterItems[i].phase) {
                     retValue += " selected=\"selected\"";
                 }
                 retValue += ">";
@@ -303,22 +311,39 @@ void requestTemperatures() {
     sensors.requestTemperatures();
 }
 
+void setDefaults(HeaterItem& heaterItem) {
+    heaterItem.name = "Heater " + String(heaterItem.address);
+    String addr;
+    heaterItem.getAddressString(addr, "%06d");
+    heaterItem.subtopic = "item_" + addr;
+    heaterItem.isEnabled = false;
+    memset(heaterItem.sensorAddress, 0, SENSOR_ADDR_LEN);
+    heaterItem.port = 0;
+    heaterItem.phase = 1;
+    heaterItem.isAuto = false;
+    heaterItem.powerConsumption = 0;
+    heaterItem.isOn = false;
+    heaterItem.priority = 100;
+    heaterItem.isConnected = false;
+    heaterItem.setTargetTemperature(0);
+    heaterItem.setTemperatureAdjust(0);
+}
+
 void saveState(HeaterItem& heaterItem) {
-    //String((unsigned int)bytes[i], (unsigned char)16U)
-    char fileName[12] = "";
-    strcat(fileName, "/item");
-    strcat(fileName, heaterItem.address);
-    
+    String fileName = "item";
+    fileName += String(heaterItem.address);
+
     File file = SPIFFS.open(fileName, FILE_WRITE, true);
     
-    StaticJsonDocument<256> doc;
+    StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
     doc["name"] = heaterItem.name;
     doc["address"] = heaterItem.address;
     doc["subtopic"] = heaterItem.subtopic;
     doc["isEnabled"] = heaterItem.isEnabled;
-    
-    //TODO: restore this line
-    //doc["sensorAddress"] = byteArrayToHexString(heaterItem.sensorAddress);
+    JsonArray sensorAddress = doc.createNestedArray("sensorAddress");
+    for (uint8_t i=0; i<SENSOR_ADDR_LEN; i++) {
+        sensorAddress.add(heaterItem.sensorAddress[i]);
+    }
     doc["port"] = heaterItem.port;
     doc["phase"] = heaterItem.phase;
     doc["isAuto"] = heaterItem.isAuto;
@@ -336,12 +361,46 @@ void saveState(HeaterItem& heaterItem) {
     DEBUG_PRINTLN(output);
 #endif
 
-    //serializeJson(doc, file);
+    serializeJson(doc, file);
     file.close();
 }
 
-void loadState() {
+void loadState(HeaterItem& heaterItem) {
+    String fileName = "item";
+    fileName += String(heaterItem.address);
 
+    if(!SPIFFS.exists(fileName)) {
+        setDefaults(heaterItem);
+    }
+    else {
+        File file = SPIFFS.open(fileName, FILE_READ, true);    
+
+        StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
+        deserializeJson(doc, file);
+
+        heaterItem.name = doc["name"].as<String>();
+        heaterItem.address = doc["address"];
+        heaterItem.subtopic = doc["subtopic"].as<String>();
+        heaterItem.isEnabled = doc["isEnabled"];
+        JsonArray sensorAddress = doc["sensorAddress"];
+        for (uint8_t i=0; i<SENSOR_ADDR_LEN; i++) {
+            heaterItem.sensorAddress[i] = sensorAddress.getElement(i).as<byte>();
+        }
+        heaterItem.port = doc["port"];
+        heaterItem.phase = doc["phase"];
+        heaterItem.isAuto = doc["isAuto"];
+        heaterItem.powerConsumption = doc["powerConsumption"];
+        heaterItem.isOn = doc["isOn"];
+        heaterItem.priority = doc["priority"];
+        heaterItem.isConnected = doc["isConnected"];
+        heaterItem.setTargetTemperature(doc["targetTemperature"]);
+        heaterItem.setTemperatureAdjust(doc["temperatureAdjust"]);
+    }
+}
+
+void loadState(HeaterItem& heaterItem, uint8_t itemNumber) {
+    heaterItem.address = itemNumber;
+    loadState(heaterItem);
 }
 
 void processSettingsForm(AsyncWebServerRequest* request) {
@@ -377,7 +436,7 @@ void processSettingsForm(AsyncWebServerRequest* request) {
     }
 
     saveState(heaterItems[itemNo]);
-    request->redirect("/setings.html");
+    request->redirect("/settings");
 }
 
 void setup()
@@ -408,6 +467,11 @@ void setup()
     if (!SPIFFS.begin(true)) {
         Serial.println("An Error has occurred while mounting SPIFFS");
         return;
+    }
+
+    //init heaterItems
+    for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+        loadState(heaterItems[i], i);
     }
 
     oneWireLedTimer.attachInterruptInterval(LED_BLINK_FAST, oneWireLedBlink);
@@ -441,10 +505,10 @@ void setup()
     server.on("/default.css", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/default.css", "text/css");
     });
-    server.on("/settings.html", HTTP_GET, [](AsyncWebServerRequest* request) {
+    server.on("/settings", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     });
-    server.on("/settings.html/get", HTTP_GET, [](AsyncWebServerRequest* request) {
+    server.on("/settings", HTTP_POST, [](AsyncWebServerRequest* request) {
         processSettingsForm(request);
     });
     AsyncElegantOTA.begin(&server);

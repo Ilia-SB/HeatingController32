@@ -9,7 +9,7 @@
 	#include "WProgram.h"
 #endif
 
-#define ADDR_LEN 7 //6 chars + /n
+//#define ADDR_LEN 7 //6 chars + /n
 #define SENSOR_ADDR_LEN	8
 
 class HeaterItem
@@ -18,7 +18,7 @@ class HeaterItem
 public:
 	String name;
 	String subtopic;
-	char address[ADDR_LEN];
+	uint8_t address;
 	boolean isEnabled;
 	byte sensorAddress[SENSOR_ADDR_LEN];
 	byte port;
@@ -53,7 +53,7 @@ public:
 	float getTemperatureAdjust();
 	void getTemperatureAdjustBytes(byte* array);
 	float getDelta();
-	void getAddressString(char* str, uint8_t* len);
+	void getAddressString(String& string, const char* format);
 protected:
 private:
 	HeaterItem(const HeaterItem& c);
