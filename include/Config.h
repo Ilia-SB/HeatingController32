@@ -38,7 +38,7 @@ const char* COMMAND_TOPIC = "test/cmnd/heating";
 const char* STATUS_TOPIC = "test/tele/heating";
 
 //JSON
-#define JSON_DOCUMENT_SIZE 256
+#define JSON_DOCUMENT_SIZE 512 //384
 
 #define NUMBER_OF_HEATERS 16
 #define NUMBER_OF_PORTS	  16

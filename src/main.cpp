@@ -319,12 +319,12 @@ void setDefaults(HeaterItem& heaterItem) {
     heaterItem.isOn = false;
     heaterItem.priority = 100;
     heaterItem.isConnected = false;
-    heaterItem.setTargetTemperature(0);
-    heaterItem.setTemperatureAdjust(0);
+    heaterItem.setTargetTemperature(0.0f);
+    heaterItem.setTemperatureAdjust(0.0f);
 }
 
 void saveState(HeaterItem& heaterItem) {
-    String fileName = "item";
+    String fileName = "/item";
     fileName += String(heaterItem.address);
 
     File file = SPIFFS.open(fileName, FILE_WRITE, true);
@@ -360,7 +360,7 @@ void saveState(HeaterItem& heaterItem) {
 }
 
 void loadState(HeaterItem& heaterItem) {
-    String fileName = "item";
+    String fileName = "/item";
     fileName += String(heaterItem.address);
 
     if(!SPIFFS.exists(fileName)) {
@@ -387,8 +387,8 @@ void loadState(HeaterItem& heaterItem) {
         heaterItem.isOn = doc["isOn"];
         heaterItem.priority = doc["priority"];
         heaterItem.isConnected = doc["isConnected"];
-        heaterItem.setTargetTemperature(doc["targetTemperature"]);
-        heaterItem.setTemperatureAdjust(doc["temperatureAdjust"]);
+        heaterItem.setTargetTemperature(doc["targetTemperature"].as<float>());
+        heaterItem.setTemperatureAdjust(doc["temperatureAdjust"].as<float>());
     }
 }
 
@@ -497,7 +497,19 @@ void setup()
     ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, "/config.html", String(), false, webServerPlaceholderProcessor);
+        String html;
+        File root = SPIFFS.open("/");
+        File file = root.openNextFile();
+ 
+        while(file){
+            html += "<a href=\"";
+            html += file.name();
+            html += "\">";
+            html += file.name();
+            html += "</a><br>";
+            file = root.openNextFile();
+        }
+        request->send(200, "text/html", html);
     });
     server.on("/default.css", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/default.css", "text/css");
@@ -506,6 +518,14 @@ void setup()
         request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     });
     server.on("/settings", HTTP_POST, processSettingsForm);
+
+    server.onNotFound([](AsyncWebServerRequest* request) {
+        int pos = request->url().lastIndexOf("/");
+        String filename = request->url().substring(pos);
+        request->send(SPIFFS, filename, "text/plain");
+        //request->send(200, "text/plain", filename);
+    });
+
     AsyncElegantOTA.begin(&server);
     server.begin();
 
