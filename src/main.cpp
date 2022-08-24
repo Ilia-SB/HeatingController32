@@ -21,11 +21,6 @@
 #include <AsyncElegantOTA.h>
 #include <ArduinoJson.h>
 
-/*
-#include <MQTTClient.h>
-#include <MQTT.h>
-*/
-
 WiFiClient ethClient;
 static bool ethConnected = false;
 
@@ -117,7 +112,24 @@ void setPorts(boolean ports[NUMBER_OF_PORTS]) {
 }
 
 void processCommand(String topic, String payload) {
-    //TODO: process
+    uint16_t commandStartPos = topic.lastIndexOf("/");
+    uint16_t targetHeaterStartPos = topic.lastIndexOf("/", commandStartPos - 1);
+    String command = topic.substring(commandStartPos + 1);
+    String targetHeater = topic.substring(targetHeaterStartPos + 1, commandStartPos -  1);
+
+    bool found = false;
+    uint8_t heaterNum = 0;
+    for(uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+        if (heaterItems[i].subtopic.equals(targetHeater)) {
+            found = true;
+            heaterNum = i;
+            break;
+        }
+    }
+
+    if (!found) {
+        return;
+    }
 }
 
 void mqttCallback(char* topic, byte* payload, const unsigned int len) {
@@ -143,7 +155,9 @@ bool mqttConnect() {
     mqttClient.setCallback(mqttCallback);
     if (mqttClient.connect(HOSTNAME)) {
         DEBUG_PRINTLN("MQTT connected");
+        DEBUG_PRINT_MQTT("MQTT connected");
         mqttClient.subscribe(COMMAND_TOPIC.c_str());
+        DEBUG_PRINT_MQTT(COMMAND_TOPIC.c_str());
         mqttLedTimer.detachInterrupt();
         mqttLed(HIGH);
         return true;

@@ -7,6 +7,7 @@
 	#undef DEBUG
 #endif // !DEBUG
 #define DEBUG
+#define MQTT_DEBUG
 
 //Pins
 #define ETHERNET_LED	14
@@ -34,7 +35,7 @@ const char* HOSTNAME = "HeatingController32";
 //MQTT
 const char* MQTT_URL = "192.168.1.3";
 const int MQTT_PORT = 1883;
-const String COMMAND_TOPIC = "test/cmnd/heating";
+const String COMMAND_TOPIC = "test/cmnd/heating/#";
 const String STATUS_TOPIC = "test/tele/heating";
 
 //JSON
