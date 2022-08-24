@@ -523,7 +523,6 @@ void setup()
         int pos = request->url().lastIndexOf("/");
         String filename = request->url().substring(pos);
         request->send(SPIFFS, filename, "text/plain");
-        //request->send(200, "text/plain", filename);
     });
 
     AsyncElegantOTA.begin(&server);
