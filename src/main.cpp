@@ -116,6 +116,21 @@ void setPorts(boolean ports[NUMBER_OF_PORTS]) {
     updateOutputs(output);
 }
 
+void processCommand(String topic, String payload) {
+    //TODO: process
+}
+
+void mqttCallback(char* topic, byte* payload, const unsigned int len) {
+    if (len < MQTT_MAX_PACKET_SIZE) {
+        payload[len] = '\0';
+    }
+    else {
+        payload[MQTT_MAX_PACKET_SIZE - 1] = '\0';
+    }
+    
+    processCommand(String(topic), String((char*)payload));
+}
+
 bool mqttConnect() {
     mqttLedTimer.attachInterruptInterval(LED_BLINK_FAST, mqttLedBlink);
     if (!ethConnected) {
@@ -123,9 +138,12 @@ bool mqttConnect() {
         mqttLed(LOW);
         return false;
     }
+    
+    mqttClient.setServer(MQTT_URL, MQTT_PORT);
+    mqttClient.setCallback(mqttCallback);
     if (mqttClient.connect(HOSTNAME)) {
         DEBUG_PRINTLN("MQTT connected");
-        mqttClient.subscribe(COMMAND_TOPIC);
+        mqttClient.subscribe(COMMAND_TOPIC.c_str());
         mqttLedTimer.detachInterrupt();
         mqttLed(HIGH);
         return true;
@@ -136,19 +154,6 @@ bool mqttConnect() {
         mqttLed(LOW);
         return false;
     }
-}
-
-void mqttCallback(char* topic, byte* payload, const unsigned int len) {
-    DEBUG_PRINTLN(topic);
-
-    if (len < MQTT_MAX_PACKET_SIZE) {
-        payload[len] = '\0';
-    }
-    else {
-        payload[len - 1] = '\0';
-    }
-    String pl = String((char*)payload);
-    DEBUG_PRINTLN(pl);
 }
 
 void WiFiEvent(WiFiEvent_t event) {
@@ -177,7 +182,7 @@ void WiFiEvent(WiFiEvent_t event) {
         ethConnected = true;
         ethernetLedTimer.detachInterrupt();
         ethernetLed(HIGH);
-        //mqttConnect();
+        mqttConnect();
         break;
     case ARDUINO_EVENT_ETH_DISCONNECTED:
         Serial.println("ETH Disconnected");
@@ -323,13 +328,7 @@ void setDefaults(HeaterItem& heaterItem) {
     heaterItem.setTemperatureAdjust(0.0f);
 }
 
-void saveState(HeaterItem& heaterItem) {
-    String fileName = "/item";
-    fileName += String(heaterItem.address);
-
-    File file = SPIFFS.open(fileName, FILE_WRITE, true);
-    
-    StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
+void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& doc) {
     doc["name"] = heaterItem.name;
     doc["address"] = heaterItem.address;
     doc["subtopic"] = heaterItem.subtopic;
@@ -347,6 +346,16 @@ void saveState(HeaterItem& heaterItem) {
     doc["isConnected"] = heaterItem.isConnected;
     doc["targetTemperature"] = heaterItem.getTargetTemperature();
     doc["temperatureAdjust"] = heaterItem.getTemperatureAdjust();
+}
+
+void saveState(HeaterItem& heaterItem) {
+    String fileName = "/item";
+    fileName += String(heaterItem.address);
+
+    File file = SPIFFS.open(fileName, FILE_WRITE, true);
+    
+    StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
+    itemToJson(heaterItem, doc);
 
 #ifdef DEBUG
     DEBUG_PRINT("Saving settings to: "); DEBUG_PRINTLN(fileName);
@@ -434,6 +443,33 @@ void processSettingsForm(AsyncWebServerRequest* request) {
 
     saveState(heaterItems[itemNo]);
     request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
+}
+
+void reportHeatersState() {
+    for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+        StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
+        itemToJson(heaterItems[i], doc);
+        String mqttTopic;
+        mqttTopic += STATUS_TOPIC;
+        mqttTopic += "/";
+        mqttTopic += heaterItems[i].subtopic;
+        mqttTopic += "/STATE";
+
+        String mqttPayload;
+        serializeJson(doc, mqttPayload);
+
+        uint16_t maxPayloadSize = MQTT_MAX_PACKET_SIZE - MQTT_MAX_HEADER_SIZE - 2 - mqttTopic.length();
+        if(mqttPayload.length() > maxPayloadSize) {
+            mqttClient.beginPublish(mqttTopic.c_str(), mqttPayload.length(), false);
+            for (uint16_t j=0; j<mqttPayload.length(); j++) {
+                mqttClient.write((uint8_t)(mqttPayload.c_str()[j]));
+            }
+            mqttClient.endPublish();
+        }
+        else {
+            mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), false);
+        }
+    }
 }
 
 void setup()
@@ -527,10 +563,6 @@ void setup()
 
     AsyncElegantOTA.begin(&server);
     server.begin();
-
-    mqttClient.setServer(MQTT_URL, MQTT_PORT);
-    mqttClient.setCallback(mqttCallback);
-    mqttConnect();
 }
 
 // Add the main program code into the continuous loop() function
@@ -538,15 +570,15 @@ void loop()
 {
     if (mqttClient.connected()) {
         mqttClient.loop();
-        mqttClient.publish(COMMAND_TOPIC, "test");
+        reportHeatersState();
     }
     else {
-        //mqttConnect();
+        mqttConnect();
     }
 
     requestTemperatures();
     for (uint8_t i = 0; i < sensorsCount; i++) {
         temperatures[i] = sensors.getTempC(sensorAddresses[i]);
     }
-    delay(1000);
+    delay(500);
 }
