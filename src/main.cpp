@@ -115,7 +115,7 @@ void processCommand(String topic, String payload) {
     uint16_t commandStartPos = topic.lastIndexOf("/");
     uint16_t targetHeaterStartPos = topic.lastIndexOf("/", commandStartPos - 1);
     String command = topic.substring(commandStartPos + 1);
-    String targetHeater = topic.substring(targetHeaterStartPos + 1, commandStartPos -  1);
+    String targetHeater = topic.substring(targetHeaterStartPos + 1, commandStartPos);
 
     bool found = false;
     uint8_t heaterNum = 0;
@@ -130,6 +130,8 @@ void processCommand(String topic, String payload) {
     if (!found) {
         return;
     }
+
+    
 }
 
 void mqttCallback(char* topic, byte* payload, const unsigned int len) {
@@ -139,8 +141,10 @@ void mqttCallback(char* topic, byte* payload, const unsigned int len) {
     else {
         payload[MQTT_MAX_PACKET_SIZE - 1] = '\0';
     }
-    
-    processCommand(String(topic), String((char*)payload));
+
+    String strTopic = String(topic);
+    String strPayload = String((char*)payload);
+    processCommand(strTopic, strPayload);
 }
 
 bool mqttConnect() {
@@ -155,9 +159,7 @@ bool mqttConnect() {
     mqttClient.setCallback(mqttCallback);
     if (mqttClient.connect(HOSTNAME)) {
         DEBUG_PRINTLN("MQTT connected");
-        DEBUG_PRINT_MQTT("MQTT connected");
         mqttClient.subscribe(COMMAND_TOPIC.c_str());
-        DEBUG_PRINT_MQTT(COMMAND_TOPIC.c_str());
         mqttLedTimer.detachInterrupt();
         mqttLed(HIGH);
         return true;
@@ -577,6 +579,8 @@ void setup()
 
     AsyncElegantOTA.begin(&server);
     server.begin();
+
+    reportHeatersState();
 }
 
 // Add the main program code into the continuous loop() function
@@ -584,7 +588,7 @@ void loop()
 {
     if (mqttClient.connected()) {
         mqttClient.loop();
-        reportHeatersState();
+        //reportHeatersState();
     }
     else {
         mqttConnect();
