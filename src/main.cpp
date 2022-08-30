@@ -112,16 +112,11 @@ void setPorts(boolean ports[NUMBER_OF_PORTS]) {
     updateOutputs(output);
 }
 
-void processCommand(String topic, String payload) {
-    uint16_t commandStartPos = topic.lastIndexOf("/");
-    uint16_t targetHeaterStartPos = topic.lastIndexOf("/", commandStartPos - 1);
-    String command = topic.substring(commandStartPos + 1);
-    String targetHeater = topic.substring(targetHeaterStartPos + 1, commandStartPos);
-
-    bool found = false;
+void processCommand(char* item, char* command) {
     uint8_t heaterNum = 0;
+    bool found = false;
     for(uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-        if (heaterItems[i].subtopic.equals(targetHeater)) {
+        if (strcmp(heaterItems[i].subtopic.c_str(), item) == 0) {
             found = true;
             heaterNum = i;
             break;
@@ -175,12 +170,34 @@ void mqttCallback(char* topic, byte* payload, const unsigned int len) {
         payload[len] = '\0';
     }
     else {
-        payload[MQTT_MAX_PACKET_SIZE - 1] = '\0';
+        return;
     }
 
-    String strTopic = String(topic);
-    String strPayload = String((char*)payload);
-    processCommand(strTopic, strPayload);
+    uint8_t firstSlash=0;
+    uint8_t secondSlash=0;
+    for (uint8_t i=strlen(topic)-1; i--;) {
+        if (topic[i] == '/') {
+            if (firstSlash == 0) {
+                firstSlash = i;
+            } else {
+                secondSlash = i;
+                break;
+            }
+        }
+    }
+
+    if (firstSlash == 0 || secondSlash == 0) {
+        return; //incorrect topic
+    }
+
+    char command[strlen(topic) - firstSlash];
+    char item[firstSlash - secondSlash];
+    memcpy(command, &topic[firstSlash + 1], strlen(topic) - firstSlash - 1);
+    command[strlen(topic) - firstSlash - 1] = '\0';
+    memcpy(item, &topic[secondSlash + 1], firstSlash - secondSlash - 1);
+    item[firstSlash - secondSlash - 1] = '\0';
+
+    processCommand(item, command);
 }
 
 bool mqttConnect() {
