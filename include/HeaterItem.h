@@ -3,7 +3,7 @@
 #ifndef _HEATERITEM_h
 #define _HEATERITEM_h
 
-#include "Arduino.h"
+#include <Arduino.h>
 
 //#define ADDR_LEN 7 //6 chars + /n
 #define SENSOR_ADDR_LEN	8
@@ -50,6 +50,24 @@ public:
 	void getTemperatureAdjustBytes(byte* array);
 	float getDelta();
 	void getAddressString(String& string, const char* format);
+	bool setIsAuto(String& val);
+	String getIsAutoStr();
+	bool setIsOn(String val);
+	String getIsOnStr();
+	bool setPriority(String val);
+	String getPriorityStr();
+	bool setTargetTemperature(String val);
+	String getTargetTemperatureStr();
+	bool setSensor(String val);
+	String getSensorStr();
+	bool setPort(String val);
+	String getPortStr();
+	bool setTemperatureAdjust(String val);
+	String getTemperatureAdjustStr();
+	bool setConsumption(String val);
+	String getConsumptionStr();
+	bool setIsEnaled(String val);
+	String getIsEnabledStr();
 protected:
 private:
 	HeaterItem(const HeaterItem& c);

@@ -1,17 +1,17 @@
 #pragma once
 
-#define TOTAL_CONSUMPTION_ITEM			= "total_consumption";
-#define TEMP_ITEM						= "_temp";
-#define IS_AUTO_ITEM					= "_isauto";
-#define IS_ON_ITEM						= "_ison";
-#define PRIORITY_ITEM					= "_prio";
-#define TARGET_TEMPERATURE_ITEM			= "_targettemp";
-#define CONSUMPTION_LIMIT_ITEM			= "consumption_limit";
-#define HYSTERESIS_ITEM					= "hysteresis";
-#define SENSOR_ITEM						= "_sensor";
-#define PORT_ITEM						= "_port";
-#define TEMPERATURE_ADJUST_ITEM			= "_tempadjust";
-#define CONSUMPTION_ITEM				= "_consumption";
-#define IS_ENABLED_ITEM					= "_isenabled";
-#define EEPROM_ERROR_ITEM				= "eeprom_error";
-#define TEMPERATURE_READ_ERROR_ITEM		= "temp_read_error";
+#define SET_TOTAL_CONSUMPTION			"total_consumption"
+#define SET_TEMP						"temp"
+#define SET_IS_AUTO 					"isauto"
+#define SET_IS_ON						"ison"
+#define SET_PRIORITY					"priority"
+#define SET_TARGET_TEMPERATURE			"targettemp"
+#define SET_CONSUMPTION_LIMIT			"consumption_limit"
+#define SET_HYSTERESIS					"hysteresis"
+#define SET_SENSOR						"sensor"
+#define SET_PORT						"port"
+#define SET_TEMPERATURE_ADJUST			"tempadjust"
+#define SET_CONSUMPTION		    		"consumption"
+#define SET_IS_ENABLED					"isenabled"
+#define EEPROM_ERROR_ITEM				"eeprom_error"
+#define TEMPERATURE_READ_ERROR_ITEM		"temp_read_error"

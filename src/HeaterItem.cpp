@@ -92,6 +92,42 @@ void HeaterItem::getAddressString(String& string, const char* format) {
 	string = String(buffer);
 }
 
+bool HeaterItem::setIsAuto(String& val) {
+	val.toUpperCase();
+	if (val.equals("ON")) {
+		isAuto = true;
+		return true;
+	} else if (val.equals("OFF")) {
+		isAuto = false;
+		return true;
+	} else {
+		return false;
+	}
+}
+
+String HeaterItem::getIsAutoStr() {
+	if (isAuto)
+		return String("ON");
+	else
+		return (String("OFF"));
+}
+
+bool setIsOn(String val);
+String getIsOnStr();
+bool setPriority(String val);
+String getPriorityStr();
+bool setTargetTemperature(String val);
+String getTargetTemperatureStr();
+bool setSensor(String val);
+String getSensorStr();
+bool setPort(String val);
+String getPortStr();
+bool setTemperatureAdjust(String val);
+String getTemperatureAdjustStr();
+bool setConsumption(String val);
+String getConsumptionStr();
+bool setIsEnaled(String val);
+String getIsEnabledStr();
 //void HeaterItem::byteToHexStr(const byte* value, uint8_t size, char* str, uint8_t* len) {
 //	uint8_t t;
 //	for (int i = 0; i < size; i++) {

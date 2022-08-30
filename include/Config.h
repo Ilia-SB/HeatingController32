@@ -36,7 +36,7 @@ const char* HOSTNAME = "HeatingController32";
 const char* MQTT_URL = "192.168.1.3";
 const int MQTT_PORT = 1883;
 const String COMMAND_TOPIC = "test/cmnd/heating/#";
-const String STATUS_TOPIC = "test/tele/heating";
+const char* STATUS_TOPIC = "test/tele/heating";
 
 //JSON
 #define JSON_DOCUMENT_SIZE 512 //384

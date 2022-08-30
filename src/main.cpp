@@ -8,6 +8,7 @@
 #include "Config.h"
 #include "Utils.h"
 #include "HeaterItem.h"
+#include "MqttInterface.h"
 #include "DebugPrint.h"
 #include <SPIFFS.h>
 #include <OneWire.h>
@@ -131,7 +132,42 @@ void processCommand(String topic, String payload) {
         return;
     }
 
-    
+    String statusTopic = String(STATUS_TOPIC);
+    statusTopic += "/";
+    statusTopic += heaterItems[heaterNum].subtopic;
+    statusTopic += "/";
+    statusTopic += command;
+
+    if (command.equals(SET_IS_AUTO)) {
+        heaterItems[heaterNum].isAuto = payload.equals("ON") ? true : false;
+        mqttClient.publish(statusTopic.c_str(), (heaterItems[heaterNum].isAuto)?"ON":"OFF");
+    }
+    if (command.equals(SET_IS_ON)) {
+        heaterItems[heaterNum].isOn = payload.toInt();
+        mqttClient.publish(STATUS_TOPIC, (heaterItems[heaterNum].isOn)?"ON":"OFF");
+    }
+    if (command.equals(SET_PRIORITY)) {
+        heaterItems[heaterNum].priority = payload.toInt();
+        mqttClient.publish(STATUS_TOPIC, String(heaterItems[heaterNum].priority).c_str());
+    }
+    if (command.equals(SET_TARGET_TEMPERATURE)) {
+        heaterItems[heaterNum].setTargetTemperature(payload.toFloat());
+    }
+    if (command.equals(SET_SENSOR)) {
+        //TODO:????
+    }
+    if (command.equals(SET_PORT)) {
+        heaterItems[heaterNum].port = payload.toInt();
+    }
+    if (command.equals(SET_TEMPERATURE_ADJUST)) {
+        heaterItems[heaterNum].setTemperatureAdjust(payload.toFloat());
+    }
+    if (command.equals(SET_CONSUMPTION)) {
+        heaterItems[heaterNum].powerConsumption = payload.toInt();
+    }
+    if (command.equals(SET_IS_ENABLED)) {
+        heaterItems[heaterNum].isEnabled = payload.toInt();
+    }
 }
 
 void mqttCallback(char* topic, byte* payload, const unsigned int len) {
