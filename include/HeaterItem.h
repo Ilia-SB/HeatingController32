@@ -50,23 +50,23 @@ public:
 	void getTemperatureAdjustBytes(byte* array);
 	float getDelta();
 	void getAddressString(String& string, const char* format);
-	bool setIsAuto(String& val);
+	bool setIsAuto(const char* val);
 	String getIsAutoStr();
-	bool setIsOn(String val);
+	bool setIsOn(const char* val);
 	String getIsOnStr();
-	bool setPriority(String val);
+	bool setPriority(const char* val);
 	String getPriorityStr();
-	bool setTargetTemperature(String val);
+	bool setTargetTemperature(const char* val);
 	String getTargetTemperatureStr();
-	bool setSensor(String val);
+	bool setSensor(const char* val);
 	String getSensorStr();
-	bool setPort(String val);
+	bool setPort(const char* val);
 	String getPortStr();
-	bool setTemperatureAdjust(String val);
+	bool setTemperatureAdjust(const char* val);
 	String getTemperatureAdjustStr();
-	bool setConsumption(String val);
+	bool setConsumption(const char* val);
 	String getConsumptionStr();
-	bool setIsEnaled(String val);
+	bool setIsEnaled(const char* val);
 	String getIsEnabledStr();
 protected:
 private:
