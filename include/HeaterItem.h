@@ -4,6 +4,8 @@
 #define _HEATERITEM_h
 
 #include <Arduino.h>
+#include "MqttInterface.h"
+#include "Utils.h"
 
 //#define ADDR_LEN 7 //6 chars + /n
 #define SENSOR_ADDR_LEN	8
@@ -51,27 +53,26 @@ public:
 	float getDelta();
 	void getAddressString(String& string, const char* format);
 	bool setIsAuto(const char* val);
-	String getIsAutoStr();
+	void getIsAutoCStr(char* val);
 	bool setIsOn(const char* val);
-	String getIsOnStr();
+	void getIsOnCStr(char* val);
 	bool setPriority(const char* val);
-	String getPriorityStr();
+	void getPriorityCStr(char* val);
 	bool setTargetTemperature(const char* val);
-	String getTargetTemperatureStr();
-	bool setSensor(const char* val);
-	String getSensorStr();
+	void getTargetTemperatureCStr(char* val);
+	bool setSensor(byte* val);
+	void getSensorCStr(char* val);
 	bool setPort(const char* val);
-	String getPortStr();
+	void getPortCStr(char* val);
 	bool setTemperatureAdjust(const char* val);
-	String getTemperatureAdjustStr();
+	void getTemperatureAdjustCStr(char* val);
 	bool setConsumption(const char* val);
-	String getConsumptionStr();
+	void getConsumptionCStr(char* val);
 	bool setIsEnaled(const char* val);
-	String getIsEnabledStr();
+	void getIsEnabledCStr(char* val);
 protected:
 private:
 	HeaterItem(const HeaterItem& c);
-	//void byteToHexStr(const byte* value, uint8_t size, char* str, uint8_t* len);
 }; //HeaterItem
 
 #endif

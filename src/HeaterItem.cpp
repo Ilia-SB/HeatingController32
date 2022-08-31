@@ -93,62 +93,129 @@ void HeaterItem::getAddressString(String& string, const char* format) {
 }
 
 bool HeaterItem::setIsAuto(const char* val) {
-	if (strcmp(val, "ON") == 0) {
+	if (strcmp(val, ON) == 0)
 		isAuto = true;
-		return true;
-	} else if (strcmp(val, "OFF") == 0) {
-		isAuto = false;
-		return true;
-	} else {
+	else if (strcmp(val, OFF) == 0)
+		isAuto = true;
+	else
+		return false;
+	
+	return true;
+}
+
+void HeaterItem::getIsAutoCStr(char* val) {
+	if (isAuto)
+		strcpy(val, ON);
+	else
+		strcpy(val, OFF);
+}
+
+bool HeaterItem::setIsOn(const char* val) {
+	if (isAuto)
+		return false;
+	if (strcmp(val, ON) == 0)
+		isOn = true;
+	else if (strcmp(val, OFF) == 0)
+		isOn = false;
+	else
+		return false;
+
+	return true;
+}
+
+void HeaterItem::getIsOnCStr(char* val) {
+	if (isOn)
+		strcpy(val, ON);
+	else
+		strcpy(val, OFF);
+}
+
+bool HeaterItem::setPriority(const char* val) {
+	byte _priority = atoi(val); 
+	
+	if (_priority <= 0) {
 		return false;
 	}
+	priority = _priority;
+	return true;
 }
 
-String HeaterItem::getIsAutoStr() {
-	if (isAuto)
-		return String("ON");
+void HeaterItem::getPriorityCStr(char* val) {
+	itoa(priority, val, 10);
+}
+
+bool HeaterItem::setTargetTemperature(const char* val) {
+	float _temperature = strtof(val, nullptr);
+	if (_temperature <= 0.0f)
+		return false;
+	setTargetTemperature(_temperature);
+	return true;
+}
+
+void HeaterItem::getTargetTemperatureCStr(char* val) {
+	dtostrf((double)targetTemperature, 5, 1, val);
+}
+
+bool HeaterItem::setSensor(byte* val) {
+	memcpy(sensorAddress, val, SENSOR_ADDR_LEN);
+	return true;
+}
+
+void HeaterItem::getSensorCStr(char* val) {
+	byteArrayToHexCString(sensorAddress, SENSOR_ADDR_LEN, val);
+}
+
+bool HeaterItem::setPort(const char* val) {
+	byte _port = atoi(val);
+	if (_port <=0)
+		return false;
+
+	port = _port;
+	return true;
+}
+
+void HeaterItem::getPortCStr(char* val) {
+	itoa(port, val, 10);
+}
+
+bool HeaterItem::setTemperatureAdjust(const char* val) {
+	float _temperatureAdjust = strtof(val, nullptr);
+	if (_temperatureAdjust <= 0.0f)
+		return false;
+	setTemperatureAdjust(_temperatureAdjust);
+	return true;
+}
+
+void HeaterItem::getTemperatureAdjustCStr(char* val) {
+	dtostrf((double)temperatureAdjust, 5, 1, val);
+}
+
+bool HeaterItem::setConsumption(const char* val) {
+	uint16_t _powerConsumption = atoi(val);
+	if (_powerConsumption <= 0)
+		return false;
+	powerConsumption = _powerConsumption;
+	return true;
+}
+
+void HeaterItem::getConsumptionCStr(char* val) {
+	itoa(powerConsumption, val, 10);
+}
+
+bool HeaterItem::setIsEnaled(const char* val) {
+	if (strcmp(val, ON) == 0)
+		isEnabled = true;
+	else if (strcmp(val, OFF) == 0)
+		isEnabled = false;
 	else
-		return (String("OFF"));
+		return false;
+
+	return true;
 }
 
-bool setIsOn(String val);
-String getIsOnStr();
-bool setPriority(String val);
-String getPriorityStr();
-bool setTargetTemperature(String val);
-String getTargetTemperatureStr();
-bool setSensor(String val);
-String getSensorStr();
-bool setPort(String val);
-String getPortStr();
-bool setTemperatureAdjust(String val);
-String getTemperatureAdjustStr();
-bool setConsumption(String val);
-String getConsumptionStr();
-bool setIsEnaled(String val);
-String getIsEnabledStr();
-//void HeaterItem::byteToHexStr(const byte* value, uint8_t size, char* str, uint8_t* len) {
-//	uint8_t t;
-//	for (int i = 0; i < size; i++) {
-//		t = value[i] / 16;
-//		if (t < 10) {
-//			*str = 48 + t;
-//		}
-//		else {
-//			*str = 55 + t;
-//		}
-//		str++;
-//
-//		t = value[i] % 16;
-//		if (t < 10) {
-//			*str = 48 + t;
-//		}
-//		else {
-//			*str = 55 + t;
-//		}
-//		str++;
-//	}
-//
-//	*str = '\0';
-//	*len = size * 2;
-//}
+void HeaterItem::getIsEnabledCStr(char* val) {
+	if (isEnabled)
+		strcpy(val, ON);
+	else
+		strcpy(val, OFF);
+}

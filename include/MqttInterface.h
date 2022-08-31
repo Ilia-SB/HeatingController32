@@ -15,3 +15,6 @@
 #define SET_IS_ENABLED					"isenabled"
 #define EEPROM_ERROR_ITEM				"eeprom_error"
 #define TEMPERATURE_READ_ERROR_ITEM		"temp_read_error"
+
+#define ON                              "ON"
+#define OFF                             "OFF"
