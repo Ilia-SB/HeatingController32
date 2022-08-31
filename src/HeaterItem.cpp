@@ -92,12 +92,11 @@ void HeaterItem::getAddressString(String& string, const char* format) {
 	string = String(buffer);
 }
 
-bool HeaterItem::setIsAuto(String& val) {
-	val.toUpperCase();
-	if (val.equals("ON")) {
+bool HeaterItem::setIsAuto(const char* val) {
+	if (strcmp(val, "ON") == 0) {
 		isAuto = true;
 		return true;
-	} else if (val.equals("OFF")) {
+	} else if (strcmp(val, "OFF") == 0) {
 		isAuto = false;
 		return true;
 	} else {

@@ -112,7 +112,7 @@ void setPorts(boolean ports[NUMBER_OF_PORTS]) {
     updateOutputs(output);
 }
 
-void processCommand(char* item, char* command) {
+void processCommand(char* item, char* command, char* payload) {
     uint8_t heaterNum = 0;
     bool found = false;
     for(uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
@@ -127,40 +127,41 @@ void processCommand(char* item, char* command) {
         return;
     }
 
-    String statusTopic = String(STATUS_TOPIC);
-    statusTopic += "/";
-    statusTopic += heaterItems[heaterNum].subtopic;
-    statusTopic += "/";
-    statusTopic += command;
+    char statusTopic[64];
+    strcpy(statusTopic, STATUS_TOPIC);
+    strcat(statusTopic, "/");
+    strcat(statusTopic, heaterItems[heaterNum].subtopic.c_str());
+    strcat(statusTopic, "/");
+    strcat(statusTopic, command);
 
-    if (command.equals(SET_IS_AUTO)) {
-        heaterItems[heaterNum].isAuto = payload.equals("ON") ? true : false;
+    if (strcmp(command, SET_IS_AUTO) == 0) {
+        heaterItems[heaterNum].setIsAuto(payload);
         mqttClient.publish(statusTopic.c_str(), (heaterItems[heaterNum].isAuto)?"ON":"OFF");
     }
-    if (command.equals(SET_IS_ON)) {
+    if (strcmp(command, SET_IS_ON) == 0) {
         heaterItems[heaterNum].isOn = payload.toInt();
         mqttClient.publish(STATUS_TOPIC, (heaterItems[heaterNum].isOn)?"ON":"OFF");
     }
-    if (command.equals(SET_PRIORITY)) {
+    if (strcmp(command, SET_PRIORITY) == 0) {
         heaterItems[heaterNum].priority = payload.toInt();
         mqttClient.publish(STATUS_TOPIC, String(heaterItems[heaterNum].priority).c_str());
     }
-    if (command.equals(SET_TARGET_TEMPERATURE)) {
+    if (strcmp(command, SET_TARGET_TEMPERATURE) == 0) {
         heaterItems[heaterNum].setTargetTemperature(payload.toFloat());
     }
-    if (command.equals(SET_SENSOR)) {
+    if (strcmp(command, SET_SENSOR) == 0) {
         //TODO:????
     }
-    if (command.equals(SET_PORT)) {
+    if (strcmp(command, SET_PORT) == 0) {
         heaterItems[heaterNum].port = payload.toInt();
     }
-    if (command.equals(SET_TEMPERATURE_ADJUST)) {
+    if (strcmp(command, SET_TEMPERATURE_ADJUST) == 0) {
         heaterItems[heaterNum].setTemperatureAdjust(payload.toFloat());
     }
-    if (command.equals(SET_CONSUMPTION)) {
+    if (strcmp(command, SET_CONSUMPTION) == 0) {
         heaterItems[heaterNum].powerConsumption = payload.toInt();
     }
-    if (command.equals(SET_IS_ENABLED)) {
+    if (strcmp(command, SET_IS_ENABLED) == 0) {
         heaterItems[heaterNum].isEnabled = payload.toInt();
     }
 }
@@ -172,6 +173,7 @@ void mqttCallback(char* topic, byte* payload, const unsigned int len) {
     else {
         return;
     }
+    strupr((char*)payload);
 
     uint8_t firstSlash=0;
     uint8_t secondSlash=0;
@@ -197,7 +199,7 @@ void mqttCallback(char* topic, byte* payload, const unsigned int len) {
     memcpy(item, &topic[secondSlash + 1], firstSlash - secondSlash - 1);
     item[firstSlash - secondSlash - 1] = '\0';
 
-    processCommand(item, command);
+    processCommand(item, command, (char*)payload);
 }
 
 bool mqttConnect() {
