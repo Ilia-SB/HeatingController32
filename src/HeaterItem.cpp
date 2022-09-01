@@ -156,9 +156,8 @@ void HeaterItem::getTargetTemperatureCStr(char* val) {
 	dtostrf((double)targetTemperature, 5, 1, val);
 }
 
-bool HeaterItem::setSensor(byte* val) {
-	memcpy(sensorAddress, val, SENSOR_ADDR_LEN);
-	return true;
+bool HeaterItem::setSensor(const char* val) {
+	return hexCStringToByteArray(val, sensorAddress, SENSOR_ADDR_LEN);
 }
 
 void HeaterItem::getSensorCStr(char* val) {

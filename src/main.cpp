@@ -7,6 +7,7 @@
 #include <Arduino.h>
 #include "Config.h"
 #include "Utils.h"
+#include "Settings.h"
 #include "HeaterItem.h"
 #include "MqttInterface.h"
 #include "DebugPrint.h"
@@ -38,6 +39,8 @@ uint8_t sensorsCount;
 DeviceAddress sensorAddresses[16];
 float temperatures[16];
 
+Settings settings;
+
 HeaterItem heaterItems[NUMBER_OF_HEATERS];
 
 uint8_t ledMode = 0;
@@ -45,6 +48,35 @@ uint8_t ledMode = 0;
 ESP32Timer ethernetLedTimer(0);
 ESP32Timer mqttLedTimer(1);
 ESP32Timer oneWireLedTimer(2);
+
+void ethernetLed(uint8_t);
+void mqttLed(uint8_t);
+void oneWireLed(uint8_t);
+bool IRAM_ATTR mqttLedBlink(void*);
+bool IRAM_ATTR ethernetLedBlink(void*);
+bool IRAM_ATTR oneWireLedBlink(void*);
+bool IRAM_ATTR oneWireLedOff(void*);
+void updateOutputs(uint16_t);
+void setPorts(boolean[]);
+void processCommand(char*, char*, char*);
+void mqttCallback(char*, byte*, const unsigned int);
+bool mqttConnect(void);
+void WiFiEvent(WiFiEvent_t);
+String webServerPlaceholderProcessor(const String&);
+void oneWireBlinkDetectedSensors(uint8_t);
+void requestTemperatures(void);
+void setDefaultSettings(Settings&);
+void setDefaults(HeaterItem&);
+void itemToJson(HeaterItem&, StaticJsonDocument<JSON_DOCUMENT_SIZE>&);
+void saveSettings(Settings&);
+void loadSettings(Settings&);
+void saveState(HeaterItem&);
+void loadState(HeaterItem&);
+void loadState(HeaterItem&, uint8_t);
+void processSettingsForm(AsyncWebServerRequest*);
+void reportHeatersState(void);
+
+
 
 void ethernetLed(uint8_t mode) {
     digitalWrite(ETHERNET_LED, mode);
@@ -62,7 +94,6 @@ bool IRAM_ATTR mqttLedBlink(void* timerNo)
 {
     static bool toggle = false;
 
-    //timer interrupt toggles pin LED_BUILTIN
     mqttLed(toggle);
     toggle = !toggle;
 
@@ -73,7 +104,6 @@ bool IRAM_ATTR ethernetLedBlink(void* timerNo)
 {
     static bool toggle = false;
 
-    //timer interrupt toggles pin LED_BUILTIN
     ethernetLed(toggle);
     toggle = !toggle;
 
@@ -84,7 +114,6 @@ bool IRAM_ATTR oneWireLedBlink(void* timerNo)
 {
     static bool toggle = false;
 
-    //timer interrupt toggles pin LED_BUILTIN
     oneWireLed(toggle);
     toggle = !toggle;
 
@@ -113,6 +142,42 @@ void setPorts(boolean ports[NUMBER_OF_PORTS]) {
 }
 
 void processCommand(char* item, char* command, char* payload) {
+    char statusTopic[64];
+    char val[32];
+
+    if (strcasecmp("settings", item) == 0) {
+        strcpy(statusTopic, STATUS_TOPIC);
+        strcat(statusTopic, "/settings/");
+        
+        if (strcasecmp(command, SET_HYSTERESIS) == 0) {
+            if (settings.setHysteresis(payload)) {
+                settings.getHysteresisCStr(val);
+                strcat(statusTopic, SET_HYSTERESIS);
+                mqttClient.publish(statusTopic, val, false);
+                saveSettings(settings);
+            }
+        }
+        if (char* underscore = strcasestr(command, "_")) {
+            char _command[strlen(command)];
+            char _phase[2];
+            memcpy(_command, command, underscore - command);
+            _command[underscore - command] = '\0';
+            strcpy(_phase, underscore + 1);
+            uint8_t phase = (uint8_t)atoi(_phase);
+            
+            if (strcasecmp(_command, SET_CONSUMPTION_LIMIT) == 0) {
+                if (settings.setConsumptionLimit(payload, phase)) {
+                    settings.getConsumptionLimitCStr(val, phase);
+                    strcat(statusTopic, SET_CONSUMPTION_LIMIT);
+                    mqttClient.publish(statusTopic, val, false);
+                    saveSettings(settings);
+                }
+            }
+        }
+        ESP.restart();
+        return;
+    }
+
     uint8_t heaterNum = 0;
     bool found = false;
     for(uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
@@ -127,7 +192,6 @@ void processCommand(char* item, char* command, char* payload) {
         return;
     }
 
-    char statusTopic[64];
     strcpy(statusTopic, STATUS_TOPIC);
     strcat(statusTopic, "/");
     strcat(statusTopic, heaterItems[heaterNum].subtopic.c_str());
@@ -135,13 +199,12 @@ void processCommand(char* item, char* command, char* payload) {
 
     HeaterItem* heater = &heaterItems[heaterNum];
 
-    char val[32];
-
     if (strcasecmp(command, SET_IS_AUTO) == 0) {
         if (heater->setIsAuto(payload)) {
             heater->getIsAutoCStr(val);
             strcat(statusTopic, SET_IS_AUTO);
             mqttClient.publish(statusTopic, val, false);
+            saveState(*heater);
         }
     }
     if (strcasecmp(command, SET_IS_ON) == 0) {
@@ -149,6 +212,7 @@ void processCommand(char* item, char* command, char* payload) {
             heater->getIsOnCStr(val);
             strcat(statusTopic, SET_IS_ON);
             mqttClient.publish(statusTopic, val, false);
+            saveState(*heater);
         }
     }
     if (strcasecmp(command, SET_PRIORITY) == 0) {
@@ -156,6 +220,7 @@ void processCommand(char* item, char* command, char* payload) {
             heater->getPriorityCStr(val);
             strcat(statusTopic, SET_PRIORITY);
             mqttClient.publish(statusTopic, val, false);
+            saveState(*heater);
         }
     }
     if (strcasecmp(command, SET_TARGET_TEMPERATURE) == 0) {
@@ -163,16 +228,24 @@ void processCommand(char* item, char* command, char* payload) {
             heater->getTargetTemperatureCStr(val);
             strcat(statusTopic, SET_TARGET_TEMPERATURE);
             mqttClient.publish(statusTopic, val, false);
+            saveState(*heater);
         }
     }
     if (strcasecmp(command, SET_SENSOR) == 0) {
-        //TODO:????
+        DEBUG_PRINT("setSensor: "); DEBUG_PRINTLN(payload);
+        if (heater->setSensor(payload)) {
+            heater->getSensorCStr(val);
+            strcat(statusTopic, SET_SENSOR);
+            mqttClient.publish(statusTopic, val, false);
+            saveState(*heater);
+        }
     }
     if (strcasecmp(command, SET_PORT) == 0) {
         if (heater->setPort(payload)) {
             heater->getPortCStr(val);
             strcat(statusTopic, SET_PORT);
             mqttClient.publish(statusTopic, val, false);
+            saveState(*heater);
         }
     }
     if (strcasecmp(command, SET_TEMPERATURE_ADJUST) == 0) {
@@ -180,6 +253,7 @@ void processCommand(char* item, char* command, char* payload) {
             heater->getTemperatureAdjustCStr(val);
             strcat(statusTopic, SET_TEMPERATURE_ADJUST);
             mqttClient.publish(statusTopic, val, false);
+            saveState(*heater);
         }
     }
     if (strcasecmp(command, SET_CONSUMPTION) == 0) {
@@ -187,6 +261,7 @@ void processCommand(char* item, char* command, char* payload) {
             heater->getConsumptionCStr(val);
             strcat(statusTopic, SET_CONSUMPTION);
             mqttClient.publish(statusTopic, val, false);
+            saveState(*heater);
         }
     }
     if (strcasecmp(command, SET_IS_ENABLED) == 0) {
@@ -194,6 +269,7 @@ void processCommand(char* item, char* command, char* payload) {
             heater->getIsEnabledCStr(val);
             strcat(statusTopic, SET_IS_ENABLED);
             mqttClient.publish(statusTopic, val, false);
+            saveState(*heater);
         }
     }
 
@@ -417,6 +493,14 @@ void requestTemperatures() {
     sensors.requestTemperatures();
 }
 
+void setDefaultSettings(Settings& settings) {
+    for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
+        settings.phases[i] = PHASES[i];
+        settings.consumptionLimit[i] = CONSUMPTION_LIMITS[i];
+        settings.hysteresis = DEFAULT_HYSTERESIS;
+    }
+}
+
 void setDefaults(HeaterItem& heaterItem) {
     heaterItem.name = "Heater " + String(heaterItem.address);
     String addr;
@@ -444,6 +528,9 @@ void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& 
     for (uint8_t i=0; i<SENSOR_ADDR_LEN; i++) {
         sensorAddress.add(heaterItem.sensorAddress[i]);
     }
+    char addr[3*SENSOR_ADDR_LEN];
+    heaterItem.getSensorCStr(addr);
+    doc["sensorAddressString"] = addr;
     doc["port"] = heaterItem.port;
     doc["phase"] = heaterItem.phase;
     doc["isAuto"] = heaterItem.isAuto;
@@ -453,6 +540,28 @@ void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& 
     doc["isConnected"] = heaterItem.isConnected;
     doc["targetTemperature"] = heaterItem.getTargetTemperature();
     doc["temperatureAdjust"] = heaterItem.getTemperatureAdjust();
+}
+
+void saveSettings(Settings& settings) {
+    const char fileName[] = "/settings";
+    File file = SPIFFS.open(fileName, FILE_WRITE, true);
+    StaticJsonDocument<JSON_DOCUMENT_SIZE_SETTINGS> doc;
+    doc["hysteresis"] = settings.hysteresis;
+    JsonArray phases = doc.createNestedArray("phases");
+    JsonArray consumptionLimit = doc.createNestedArray("consumptionLimit");
+    for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
+        phases.add(settings.phases[i]);
+        consumptionLimit.add(settings.consumptionLimit[i]);
+    }
+
+#ifdef DEBUG
+    DEBUG_PRINT("Saving settings to: "); DEBUG_PRINTLN(fileName);
+    char output[JSON_DOCUMENT_SIZE_SETTINGS];
+    serializeJson(doc, output);
+    DEBUG_PRINTLN(output);
+#endif
+    serializeJson(doc, file);
+    file.close();
 }
 
 void saveState(HeaterItem& heaterItem) {
@@ -466,13 +575,35 @@ void saveState(HeaterItem& heaterItem) {
 
 #ifdef DEBUG
     DEBUG_PRINT("Saving settings to: "); DEBUG_PRINTLN(fileName);
-    char output[256];
+    char output[JSON_DOCUMENT_SIZE];
     serializeJson(doc, output);
     DEBUG_PRINTLN(output);
 #endif
 
     serializeJson(doc, file);
     file.close();
+}
+
+void loadSettings(Settings& settings) {
+    const char fileName[] = "/settings";
+
+    if (!SPIFFS.exists(fileName)) {
+        setDefaultSettings(settings);
+    }
+    else {
+        File file = SPIFFS.open(fileName, FILE_READ, true);
+
+        StaticJsonDocument<JSON_DOCUMENT_SIZE_SETTINGS> doc;
+        deserializeJson(doc, file);
+
+        settings.hysteresis = doc["hysteresis"].as<float>();
+        JsonArray phases = doc["phases"];
+        JsonArray consumptionLimit = doc["consumptionLimit"];
+        for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
+            settings.phases[i] = phases.getElement(i).as<uint8_t>();
+            settings.consumptionLimit[i] = consumptionLimit.getElement(i).as<uint16_t>();
+        }
+    }
 }
 
 void loadState(HeaterItem& heaterItem) {
@@ -608,6 +739,15 @@ void setup()
         Serial.println("An Error has occurred while mounting SPIFFS");
         return;
     }
+
+    //init settings
+    loadSettings(settings);
+    DEBUG_PRINTLN("Initializing with settings:");
+    DEBUG_PRINT("Hysteresis: "); DEBUG_PRINTLN(settings.hysteresis);
+    for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
+        DEBUG_PRINT("Phase ");DEBUG_PRINT(settings.phases[i]); DEBUG_PRINT(": consumption limit: ");DEBUG_PRINTLN(settings.consumptionLimit[i]);
+    }
+    DEBUG_PRINTLN();
 
     //init heaterItems
     for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {

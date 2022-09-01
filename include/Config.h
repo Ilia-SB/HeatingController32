@@ -30,21 +30,23 @@
 #define ETH_MDC_PIN     23                      //I2C clock pin
 #define ETH_MDIO_PIN    18                      //I2C IO pin
 
-const char* HOSTNAME = "HeatingController32";
+static const char* HOSTNAME = "HeatingController32";
 
 //MQTT
-const char* MQTT_URL = "192.168.1.3";
-const int MQTT_PORT = 1883;
-const String COMMAND_TOPIC = "test/cmnd/heating/#";
-const char* STATUS_TOPIC = "test/tele/heating";
+static const char* MQTT_URL = "192.168.1.3";
+static const int MQTT_PORT = 1883;
+static const String COMMAND_TOPIC = "test/cmnd/heating/#";
+static const char* STATUS_TOPIC = "test/tele/heating";
 
 //JSON
 #define JSON_DOCUMENT_SIZE 512 //384
+#define JSON_DOCUMENT_SIZE_SETTINGS 256
 
 #define NUMBER_OF_HEATERS 16
 #define NUMBER_OF_PORTS	  16
 #define NUMBER_OF_PHASES  2
-const uint8_t PHASES[NUMBER_OF_PHASES] = {1,2};
+static const uint8_t PHASES[NUMBER_OF_PHASES] = {1,2};
+static const uint16_t CONSUMPTION_LIMITS[NUMBER_OF_PHASES] = {5000, 5000};
 //const int pins[NUMBER_OF_HEATERS] = { 4,5,6,7,8,9,17,16,15,14 }; /*pins that control relays*/
 
 #define SENSOR 16 //Temperature sensors pin
@@ -62,7 +64,7 @@ const uint8_t PHASES[NUMBER_OF_PHASES] = {1,2};
 #define DEFAULT_TEMPERATURE_ADJUST 0
 #define DEFAULT_CONSUMPTION_LIMIT 10000
 #define MAX_CONSUMPTION_LIMIT 15000
-#define DEFAULT_HYSTERESIS 1
+#define DEFAULT_HYSTERESIS 1.0f
 #define PROCESSING_INTERVAL 30000UL /*3s*/
 #define OFF_ON_DELAY 2000UL /*2s*/
 #define READ_SENSORS_DELAY 1000UL /*ms*/
@@ -80,10 +82,10 @@ const byte PROGMEM HEATER9[3] =	{0x00, 0x00, 0x08};
 const byte PROGMEM HEATER10[3] = {0x00, 0x00, 0x09};
 */
 
-const byte PROGMEM MODBUS_REQUEST[] = { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B };
+//const byte PROGMEM MODBUS_REQUEST[] = { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B };
 //                                      addr   fnc  start_addr  read_bytes      crc
 //Response: 0x01 0x03 0x02  0xXX 0xXX 0xYY 0xYY XXXX - consumption, YYYY - CRC
-
+/*
 #define SENSOR_ADDRESS	0
 #define IS_ENABLED		8
 #define PORT			9
@@ -100,10 +102,11 @@ const byte PROGMEM MODBUS_REQUEST[] = { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4
 #define INCORRECT_JSON  254
 #define UNDEFINED		255
 
-#define HEATER_RECORD_LEN	23 /*bytes*/
+#define HEATER_RECORD_LEN	23 //bytes
 
 #define CONSUMPTION_LIMIT (HEATER_RECORD_LEN * NUMBER_OF_HEATERS)
 #define HYSTERESYS (CONSUMPTION_LIMIT + 2)
 
-#define EEPROM_WRITE_DELAY_TIME	5000 /*5 seconds*/
+#define EEPROM_WRITE_DELAY_TIME	5000 //5 seconds
+*/
 #endif /* CONFIG_H_ */

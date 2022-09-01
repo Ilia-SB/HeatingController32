@@ -60,7 +60,7 @@ public:
 	void getPriorityCStr(char* val);
 	bool setTargetTemperature(const char* val);
 	void getTargetTemperatureCStr(char* val);
-	bool setSensor(byte* val);
+	bool setSensor(const char* val);
 	void getSensorCStr(char* val);
 	bool setPort(const char* val);
 	void getPortCStr(char* val);
