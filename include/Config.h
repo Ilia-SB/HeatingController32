@@ -37,10 +37,12 @@ static const char* MQTT_URL = "192.168.1.3";
 static const int MQTT_PORT = 1883;
 static const String COMMAND_TOPIC = "test/cmnd/heating/#";
 static const char* STATUS_TOPIC = "test/tele/heating";
+static const char* ENERGY_METER_TOPIC = "tele/energy_meter";
 
 //JSON
 #define JSON_DOCUMENT_SIZE 512 //384
 #define JSON_DOCUMENT_SIZE_SETTINGS 256
+#define JSON_DOCUMENT_SIZE_ENERGY_METER 256
 
 #define NUMBER_OF_HEATERS 16
 #define NUMBER_OF_PORTS	  16

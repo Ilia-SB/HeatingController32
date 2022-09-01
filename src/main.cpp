@@ -35,6 +35,8 @@ DallasTemperature sensors(&oneWire);
 
 byte outputs = 0;
 
+uint16_t currentConsumption[3];
+
 uint8_t sensorsCount;
 DeviceAddress sensorAddresses[16];
 float temperatures[16];
@@ -75,7 +77,7 @@ void loadState(HeaterItem&);
 void loadState(HeaterItem&, uint8_t);
 void processSettingsForm(AsyncWebServerRequest*);
 void reportHeatersState(void);
-
+void getConsumptionData(const char*);
 
 
 void ethernetLed(uint8_t mode) {
@@ -139,6 +141,20 @@ void setPorts(boolean ports[NUMBER_OF_PORTS]) {
             bitSet(output, i);
     }
     updateOutputs(output);
+}
+
+void getConsumptionData(const char* rawData) {
+    StaticJsonDocument<JSON_DOCUMENT_SIZE_ENERGY_METER> doc;
+    deserializeJson(doc, rawData);
+
+    for (uint8_t phase=0; phase<3; phase++) {
+        char key[5] = "POW";
+        char idx = phase + 1 + 48; //convert to ascii
+        strncat(key, &idx, 1);
+        DEBUG_PRINT(key); DEBUG_PRINT(" ");
+        currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
+        DEBUG_PRINTLN(currentConsumption[phase]);
+    }
 }
 
 void processCommand(char* item, char* command, char* payload) {
@@ -272,8 +288,6 @@ void processCommand(char* item, char* command, char* payload) {
             saveState(*heater);
         }
     }
-
-    //TODO: General commands
 }
 
 void mqttCallback(char* topic, byte* payload, const unsigned int len) {
@@ -283,9 +297,15 @@ void mqttCallback(char* topic, byte* payload, const unsigned int len) {
     else {
         return;
     }
+
     char payloadCopy[len + 1];
     strcpy(payloadCopy, (char*)payload);
     strupr(payloadCopy);
+
+    if (strcasecmp(topic, ENERGY_METER_TOPIC) == 0) {
+        getConsumptionData(payloadCopy);
+        return;
+    }
 
     uint8_t firstSlash = 0;
     uint8_t secondSlash = 0;
@@ -327,6 +347,7 @@ bool mqttConnect() {
     if (mqttClient.connect(HOSTNAME)) {
         DEBUG_PRINTLN("MQTT connected");
         mqttClient.subscribe(COMMAND_TOPIC.c_str());
+        mqttClient.subscribe(ENERGY_METER_TOPIC);
         mqttLedTimer.detachInterrupt();
         mqttLed(HIGH);
         return true;
