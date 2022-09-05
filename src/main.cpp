@@ -147,7 +147,7 @@ void getConsumptionData(const char* rawData) {
     StaticJsonDocument<JSON_DOCUMENT_SIZE_ENERGY_METER> doc;
     deserializeJson(doc, rawData);
 
-    for (uint8_t phase=0; phase<3; phase++) {
+    for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
         char key[5] = "POW";
         char idx = phase + 1 + 48; //convert to ascii
         strncat(key, &idx, 1);
@@ -474,13 +474,13 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += "</td></tr><tr><td class=\"name\">Phase</td><td class=\"value\"><select name=\"phase\">";
             for (uint8_t j=0; j<NUMBER_OF_PHASES; j++) {
                 retValue += "<option value=\"";
-                retValue += String(PHASES[j]);
+                retValue += String(j);
                 retValue += "\"";
-                if (PHASES[j]==heaterItems[i].phase) {
+                if (j==heaterItems[i].phase) {
                     retValue += " selected=\"selected\"";
                 }
                 retValue += ">";
-                retValue += String(PHASES[j]);
+                retValue += String(j);
                 retValue += "</option>";
             }
             retValue += "</td></tr><tr><td class=\"name\">Consumption</td><td class=\"value\"><input type=\"text\" name=\"consumption\" value=\"";
@@ -516,7 +516,7 @@ void requestTemperatures() {
 
 void setDefaultSettings(Settings& settings) {
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
-        settings.phases[i] = PHASES[i];
+        //settings.phases[i] = i;
         settings.consumptionLimit[i] = CONSUMPTION_LIMITS[i];
         settings.hysteresis = DEFAULT_HYSTERESIS;
     }
@@ -568,10 +568,10 @@ void saveSettings(Settings& settings) {
     File file = SPIFFS.open(fileName, FILE_WRITE, true);
     StaticJsonDocument<JSON_DOCUMENT_SIZE_SETTINGS> doc;
     doc["hysteresis"] = settings.hysteresis;
-    JsonArray phases = doc.createNestedArray("phases");
+    //JsonArray phases = doc.createNestedArray("phases");
     JsonArray consumptionLimit = doc.createNestedArray("consumptionLimit");
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
-        phases.add(settings.phases[i]);
+        //phases.add(settings.phases[i]);
         consumptionLimit.add(settings.consumptionLimit[i]);
     }
 
@@ -618,10 +618,10 @@ void loadSettings(Settings& settings) {
         deserializeJson(doc, file);
 
         settings.hysteresis = doc["hysteresis"].as<float>();
-        JsonArray phases = doc["phases"];
+        //JsonArray phases = doc["phases"];
         JsonArray consumptionLimit = doc["consumptionLimit"];
         for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
-            settings.phases[i] = phases.getElement(i).as<uint8_t>();
+            //settings.phases[i] = phases.getElement(i).as<uint8_t>();
             settings.consumptionLimit[i] = consumptionLimit.getElement(i).as<uint16_t>();
         }
     }
@@ -766,7 +766,7 @@ void setup()
     DEBUG_PRINTLN("Initializing with settings:");
     DEBUG_PRINT("Hysteresis: "); DEBUG_PRINTLN(settings.hysteresis);
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
-        DEBUG_PRINT("Phase ");DEBUG_PRINT(settings.phases[i]); DEBUG_PRINT(": consumption limit: ");DEBUG_PRINTLN(settings.consumptionLimit[i]);
+        DEBUG_PRINT("Phase ");DEBUG_PRINT(i); DEBUG_PRINT(": consumption limit: ");DEBUG_PRINTLN(settings.consumptionLimit[i]);
     }
     DEBUG_PRINTLN();
 

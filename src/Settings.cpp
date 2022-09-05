@@ -17,20 +17,10 @@ bool Settings::setConsumptionLimit(const char* val, uint8_t phase) {
     if (_consumptionLimit <= 0)
         return false;
 
-    for(uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
-        if (phase == phases[i]) {
-            consumptionLimit[i] = _consumptionLimit;
-            return true;
-        }
-    }
-    return false;    
+    consumptionLimit[phase] = _consumptionLimit;
+    return true;
 }
 
 void Settings::getConsumptionLimitCStr(char* val, uint8_t phase) {
-    uint8_t _phase;
-    for(uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
-        if (phase == phases[i]) {
-            itoa(consumptionLimit[i], val, 10);
-        }
-    }
+    itoa(consumptionLimit[phase], val, 10);
 }

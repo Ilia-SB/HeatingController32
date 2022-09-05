@@ -46,9 +46,9 @@ static const char* ENERGY_METER_TOPIC = "tele/energy_meter";
 
 #define NUMBER_OF_HEATERS 16
 #define NUMBER_OF_PORTS	  16
-#define NUMBER_OF_PHASES  2
-static const uint8_t PHASES[NUMBER_OF_PHASES] = {1,2};
-static const uint16_t CONSUMPTION_LIMITS[NUMBER_OF_PHASES] = {5000, 5000};
+#define NUMBER_OF_PHASES  3
+//static const uint8_t PHASES[NUMBER_OF_PHASES] = {1,2,3};
+static const uint16_t CONSUMPTION_LIMITS[NUMBER_OF_PHASES] = {5000, 5000, 5000};
 //const int pins[NUMBER_OF_HEATERS] = { 4,5,6,7,8,9,17,16,15,14 }; /*pins that control relays*/
 
 #define SENSOR 16 //Temperature sensors pin

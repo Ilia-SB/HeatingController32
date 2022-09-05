@@ -8,7 +8,7 @@ class Settings
 {
 //variables
 public:
-    uint8_t phases[NUMBER_OF_PHASES];
+    //uint8_t phases[NUMBER_OF_PHASES];
     uint16_t consumptionLimit[NUMBER_OF_PHASES];
     float hysteresis;
 
