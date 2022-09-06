@@ -15,9 +15,9 @@
 #define ONEWIRE_LED		13
 
 //Leds
-#define LED_BLINK_FAST		125000.0f	//microseconds
-#define LED_BLINK_MEDIUM	250000.0f
-#define LED_BLINK_SLOW		500000.0f
+#define LED_BLINK_FAST		125	//miliseconds
+#define LED_BLINK_MEDIUM	250
+#define LED_BLINK_SLOW		500
 
 //Ethernet
 #ifdef ETH_CLK_MODE
@@ -67,9 +67,9 @@ static const uint16_t CONSUMPTION_LIMITS[NUMBER_OF_PHASES] = {5000, 5000, 5000};
 #define DEFAULT_CONSUMPTION_LIMIT 10000
 #define MAX_CONSUMPTION_LIMIT 15000
 #define DEFAULT_HYSTERESIS 1.0f
-#define PROCESSING_INTERVAL 30000UL /*3s*/
-#define OFF_ON_DELAY 2000UL /*2s*/
-#define READ_SENSORS_DELAY 1000UL /*ms*/
+#define TEMPERATURE_READ_INTERVAL 30000L /*3s*/
+#define OFF_ON_DELAY 2000L /*2s*/
+#define READ_SENSORS_DELAY 1000L /*ms*/
 
 /*
 const byte PROGMEM HEATER1[3] =   {0x00, 0x00, 0x00};
