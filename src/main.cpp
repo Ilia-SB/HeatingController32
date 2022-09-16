@@ -106,6 +106,7 @@ void loadState(HeaterItem&);
 void loadState(HeaterItem&, uint8_t);
 void processSettingsForm(AsyncWebServerRequest*);
 void reportHeatersState(void);
+void reportTemperatures(void);
 void getConsumptionData(const char*);
 
 
@@ -550,6 +551,11 @@ void readTemperatures() {
         heaterItems[i].setTemperature(_temperature);
     }
     flagReadTemperatures = false;
+    reportTemperatures();
+}
+
+void reportTemperatures() {
+    //TODO: report to mqtt
 }
 
 void setDefaultSettings(Settings& settings) {
