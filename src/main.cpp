@@ -533,10 +533,14 @@ void requestTemperaturesISR(void) {
 }
 
 void requestTemperatures() {
+    DEBUG_PRINTLN("Requesting temperatures...");
     oneWireLed(HIGH);
+    //DEBUG_PRINTLN(" Set led timeout");
     ISR_Timer.setTimeout(LED_BLINK_FAST, oneWireLedOff); //turn the led off for a while to indicate activity
+    //DEBUG_PRINTLN(" requestTemperatures");
     sensors.requestTemperatures();
-    ISR_Timer.setTimeout(READ_SENSORS_DELAY, readTemperatures);
+    //DEBUG_PRINTLN(" Set read timeout");
+    ISR_Timer.setTimeout(READ_SENSORS_DELAY, readTemperaturesISR);
     flagRequestTemperatures = false;
 }
 
@@ -545,10 +549,13 @@ void readTemperaturesISR() {
 }
 
 void readTemperatures() {
+    DEBUG_PRINTLN("Reading temperatures...");
     for (uint8_t i = 0; i < NUMBER_OF_HEATERS; i++) {
         float _temperature = sensors.getTempC(heaterItems[i].sensorAddress);
+        //DEBUG_PRINT("    ");DEBUG_PRINTLN(_temperature);
         //TODO: check the value for errors and report
         heaterItems[i].setTemperature(_temperature);
+        
     }
     flagReadTemperatures = false;
     reportTemperatures();
@@ -886,6 +893,7 @@ void setup()
     ISR_Timer.enable(TIMER_NUM_REQUEST_TEMPERATURES);
 
     reportHeatersState();
+    DEBUG_PRINTLN("Entering main loop.");
 }
 
 // Add the main program code into the continuous loop() function
@@ -899,9 +907,11 @@ void loop()
         mqttConnect();
     }
 
-    if (flagRequestTemperatures)
+    if (flagRequestTemperatures) {
         requestTemperatures();
+    }
 
-    if (flagReadTemperatures)
+    if (flagReadTemperatures) {
         readTemperatures();
+    }
 }
