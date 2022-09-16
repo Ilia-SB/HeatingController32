@@ -58,10 +58,10 @@ bool IRAM_ATTR TimerHandler(void* timerNo) {
 
 typedef void (*irqCallback)  ();
 
-#define TIMER_NO_MQTT_LED_BLINK         0
-#define TIMER_NO_ETHERNET_LED_BLINK     1
-#define TIMER_NO_ONEWIRE_LED_BLINK      2
-#define TIMER_NO_REQUEST_TEMPERATURES   3
+#define TIMER_NUM_MQTT_LED_BLINK         0
+#define TIMER_NUM_ETHERNET_LED_BLINK     1
+#define TIMER_NUM_ONEWIRE_LED_BLINK      2
+#define TIMER_NUM_REQUEST_TEMPERATURES   3
 
 
 #define NUMBER_OF_ISR_TIMERS 4 //number of previous defines
@@ -70,15 +70,20 @@ void mqttLedBlink(void);
 void ethernetLedBlink(void);
 void oneWireLedBlink(void);
 void oneWireLedOff(void);
+void requestTemperaturesISR(void);
 void requestTemperatures(void);
+void readTemperaturesISR(void);
+void readTemperatures(void);
 
 irqCallback isrTimerCallbacks[NUMBER_OF_ISR_TIMERS] = {
     mqttLedBlink,
     ethernetLedBlink,
     oneWireLedBlink,
-    requestTemperatures
+    requestTemperaturesISR
 };
 
+volatile bool flagRequestTemperatures = false;
+volatile bool flagReadTemperatures = false;
 
 void ethernetLed(uint8_t);
 void mqttLed(uint8_t);
@@ -91,8 +96,6 @@ bool mqttConnect(void);
 void WiFiEvent(WiFiEvent_t);
 String webServerPlaceholderProcessor(const String&);
 void oneWireBlinkDetectedSensors(uint8_t);
-void requestTemperatures(void);
-void readTemperatures(void);
 void setDefaultSettings(Settings&);
 void setDefaults(HeaterItem&);
 void itemToJson(HeaterItem&, StaticJsonDocument<JSON_DOCUMENT_SIZE>&);
@@ -358,20 +361,20 @@ bool mqttConnect() {
         mqttLed(LOW);
         return false;
     }
-    ISR_Timer.enable(TIMER_NO_MQTT_LED_BLINK);
+    ISR_Timer.enable(TIMER_NUM_MQTT_LED_BLINK);
     mqttClient.setServer(MQTT_URL, MQTT_PORT);
     mqttClient.setCallback(mqttCallback);
     if (mqttClient.connect(HOSTNAME)) {
         DEBUG_PRINTLN("MQTT connected");
         mqttClient.subscribe(COMMAND_TOPIC.c_str());
         mqttClient.subscribe(ENERGY_METER_TOPIC);
-        ISR_Timer.disable(TIMER_NO_MQTT_LED_BLINK);
+        ISR_Timer.disable(TIMER_NUM_MQTT_LED_BLINK);
         mqttLed(HIGH);
         return true;
     }
     else {
         DEBUG_PRINTLN("MQTT connect failed");
-        ISR_Timer.disable(TIMER_NO_MQTT_LED_BLINK);
+        ISR_Timer.disable(TIMER_NUM_MQTT_LED_BLINK);
         mqttLed(LOW);
         return false;
     }
@@ -386,7 +389,7 @@ void WiFiEvent(WiFiEvent_t event) {
     case ARDUINO_EVENT_ETH_CONNECTED:
         DEBUG_PRINTLN("ETH Connected");
         ethConnected = true;
-        ISR_Timer.changeInterval(TIMER_NO_ETHERNET_LED_BLINK, LED_BLINK_MEDIUM);
+        ISR_Timer.changeInterval(TIMER_NUM_ETHERNET_LED_BLINK, LED_BLINK_MEDIUM);
         break;
     case ARDUINO_EVENT_ETH_GOT_IP:
         DEBUG_PRINT("ETH MAC: ");
@@ -400,7 +403,7 @@ void WiFiEvent(WiFiEvent_t event) {
         DEBUG_PRINT(ETH.linkSpeed());
         DEBUG_PRINTLN("Mbps");
         ethConnected = true;
-        ISR_Timer.disable(TIMER_NO_ETHERNET_LED_BLINK);
+        ISR_Timer.disable(TIMER_NUM_ETHERNET_LED_BLINK);
         ethernetLed(HIGH);
         mqttConnect();
         break;
@@ -524,11 +527,20 @@ void oneWireBlinkDetectedSensors(uint8_t sensorsCount) {
     delay(500);
 }
 
+void requestTemperaturesISR(void) {
+    flagRequestTemperatures = true;
+}
+
 void requestTemperatures() {
     oneWireLed(HIGH);
     ISR_Timer.setTimeout(LED_BLINK_FAST, oneWireLedOff); //turn the led off for a while to indicate activity
     sensors.requestTemperatures();
     ISR_Timer.setTimeout(READ_SENSORS_DELAY, readTemperatures);
+    flagRequestTemperatures = false;
+}
+
+void readTemperaturesISR() {
+    flagReadTemperatures = true;
 }
 
 void readTemperatures() {
@@ -537,6 +549,7 @@ void readTemperatures() {
         //TODO: check the value for errors and report
         heaterItems[i].setTemperature(_temperature);
     }
+    flagReadTemperatures = false;
 }
 
 void setDefaultSettings(Settings& settings) {
@@ -778,10 +791,10 @@ void setup()
 
     iTimer.attachInterruptInterval(ITIMER_INTERVAL_MS * 1000, TimerHandler);
 
-    ISR_Timer.setInterval(LED_BLINK_FAST, isrTimerCallbacks[TIMER_NO_MQTT_LED_BLINK]);
-    ISR_Timer.setInterval(LED_BLINK_FAST, isrTimerCallbacks[TIMER_NO_ETHERNET_LED_BLINK]);
-    ISR_Timer.setInterval(LED_BLINK_FAST, isrTimerCallbacks[TIMER_NO_ONEWIRE_LED_BLINK]);
-    ISR_Timer.setInterval(TEMPERATURE_READ_INTERVAL, isrTimerCallbacks[TIMER_NO_REQUEST_TEMPERATURES]);
+    ISR_Timer.setInterval(LED_BLINK_FAST, isrTimerCallbacks[TIMER_NUM_MQTT_LED_BLINK]);
+    ISR_Timer.setInterval(LED_BLINK_FAST, isrTimerCallbacks[TIMER_NUM_ETHERNET_LED_BLINK]);
+    ISR_Timer.setInterval(LED_BLINK_FAST, isrTimerCallbacks[TIMER_NUM_ONEWIRE_LED_BLINK]);
+    ISR_Timer.setInterval(TEMPERATURE_READ_INTERVAL, isrTimerCallbacks[TIMER_NUM_REQUEST_TEMPERATURES]);
     ISR_Timer.disableAll();
 
     Serial.begin(115200);
@@ -808,10 +821,10 @@ void setup()
         loadState(heaterItems[i], i);
     }
 
-    ISR_Timer.enable(TIMER_NO_ONEWIRE_LED_BLINK);
+    ISR_Timer.enable(TIMER_NUM_ONEWIRE_LED_BLINK);
     sensors.begin();
     sensorsCount = sensors.getDS18Count();
-    ISR_Timer.disable(TIMER_NO_ONEWIRE_LED_BLINK);
+    ISR_Timer.disable(TIMER_NUM_ONEWIRE_LED_BLINK);
     if (sensorsCount > 0) {
         oneWireBlinkDetectedSensors(sensorsCount);
     }
@@ -828,7 +841,7 @@ void setup()
     }
     DEBUG_PRINTLN();
  
-    ISR_Timer.enable(TIMER_NO_ETHERNET_LED_BLINK);
+    ISR_Timer.enable(TIMER_NUM_ETHERNET_LED_BLINK);
     WiFi.onEvent(WiFiEvent);
     ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
 
@@ -864,7 +877,7 @@ void setup()
     AsyncElegantOTA.begin(&server);
     server.begin();
 
-    ISR_Timer.enable(TIMER_NO_REQUEST_TEMPERATURES);
+    ISR_Timer.enable(TIMER_NUM_REQUEST_TEMPERATURES);
 
     reportHeatersState();
 }
@@ -880,6 +893,9 @@ void loop()
         mqttConnect();
     }
 
-    //requestTemperatures(); called based on timer
-    delay(500);
+    if (flagRequestTemperatures)
+        requestTemperatures();
+
+    if (flagReadTemperatures)
+        readTemperatures();
 }
