@@ -249,26 +249,22 @@ void processCommand(char* item, char* command, char* payload) {
 
     if (strcasecmp(command, SET_IS_AUTO) == 0) {
         if (heater->setIsAuto(payload)) {
+            sanityCheckHeater(*heater);
             heater->getIsAutoCStr(val);
             strcat(statusTopic, SET_IS_AUTO);
-            mqttClient.publish(statusTopic, val, false);
-            saveState(*heater);
         }
     }
     if (strcasecmp(command, SET_IS_ON) == 0) {
         if (heater->setIsOn(payload)) {
             heater->getIsOnCStr(val);
             strcat(statusTopic, SET_IS_ON);
-            mqttClient.publish(statusTopic, val, false);
-            saveState(*heater);
         }
     }
     if (strcasecmp(command, SET_PRIORITY) == 0) {
         if (heater->setPriority(payload)) {
+            sanityCheckHeater(*heater);
             heater->getPriorityCStr(val);
             strcat(statusTopic, SET_PRIORITY);
-            mqttClient.publish(statusTopic, val, false);
-            saveState(*heater);
         }
     }
     if (strcasecmp(command, SET_TARGET_TEMPERATURE) == 0) {
@@ -282,18 +278,16 @@ void processCommand(char* item, char* command, char* payload) {
     if (strcasecmp(command, SET_SENSOR) == 0) {
         DEBUG_PRINT("setSensor: "); DEBUG_PRINTLN(payload);
         if (heater->setSensor(payload)) {
+            sanityCheckHeater(*heater);
             heater->getSensorCStr(val);
             strcat(statusTopic, SET_SENSOR);
-            mqttClient.publish(statusTopic, val, false);
-            saveState(*heater);
         }
     }
     if (strcasecmp(command, SET_PORT) == 0) {
         if (heater->setPort(payload)) {
+            sanityCheckHeater(*heater);
             heater->getPortCStr(val);
             strcat(statusTopic, SET_PORT);
-            mqttClient.publish(statusTopic, val, false);
-            saveState(*heater);
         }
     }
     if (strcasecmp(command, SET_TEMPERATURE_ADJUST) == 0) {
@@ -314,12 +308,14 @@ void processCommand(char* item, char* command, char* payload) {
     }
     if (strcasecmp(command, SET_IS_ENABLED) == 0) {
         if (heater->setIsEnaled(payload)) {
+            sanityCheckHeater(*heater);
             heater->getIsEnabledCStr(val);
             strcat(statusTopic, SET_IS_ENABLED);
-            mqttClient.publish(statusTopic, val, false);
-            saveState(*heater);
         }
     }
+
+    mqttClient.publish(statusTopic, val, false);
+    saveState(*heater);
 }
 
 void mqttCallback(char* topic, byte* payload, const unsigned int len) {
