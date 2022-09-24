@@ -38,8 +38,14 @@ byte outputs = 0;
 uint16_t currentConsumption[3];
 
 uint8_t sensorsCount;
-DeviceAddress sensorAddresses[16];
-float temperatures[16];
+DeviceAddress sensorAddresses[MAX_NUMBER_OF_SENSORS];
+float temperatures[MAX_NUMBER_OF_SENSORS];
+
+uint8_t unconnectedSensorsCount = 0;
+HeaterItem* unconnectedSensors[NUMBER_OF_HEATERS];
+
+uint8_t unconfiguredSesorsCount = 0;
+DeviceAddress* unconfiguredSensors[MAX_NUMBER_OF_SENSORS];
 
 Settings settings;
 
@@ -108,6 +114,9 @@ void processSettingsForm(AsyncWebServerRequest*);
 void reportHeatersState(void);
 void reportTemperatures(void);
 void getConsumptionData(const char*);
+void initHeaters(void);
+void processHeaters(void);
+bool checkSensorConnected(byte[SENSOR_ADDR_LEN]);
 
 
 void ethernetLed(uint8_t mode) {
@@ -325,11 +334,13 @@ void mqttCallback(char* topic, byte* payload, const unsigned int len) {
     strcpy(payloadCopy, (char*)payload);
     strupr(payloadCopy);
 
+    //Energy meter
     if (strcasecmp(topic, ENERGY_METER_TOPIC) == 0) {
         getConsumptionData(payloadCopy);
         return;
     }
 
+    //Controller commands
     uint8_t firstSlash = 0;
     uint8_t secondSlash = 0;
     for (uint8_t i=strlen(topic)-1; i--;) {
@@ -554,6 +565,8 @@ void readTemperatures() {
         float _temperature = sensors.getTempC(heaterItems[i].sensorAddress);
         //DEBUG_PRINT("    ");DEBUG_PRINTLN(_temperature);
         //TODO: check the value for errors and report
+        //TODO: CRC_ERROR
+        //TODO: NO_DATA
         heaterItems[i].setTemperature(_temperature);
         
     }
@@ -578,17 +591,8 @@ void setDefaults(HeaterItem& heaterItem) {
     String addr;
     heaterItem.getAddressString(addr, "%06d");
     heaterItem.subtopic = "item_" + addr;
-    heaterItem.isEnabled = false;
-    memset(heaterItem.sensorAddress, 0, SENSOR_ADDR_LEN);
-    heaterItem.port = 0;
-    heaterItem.phase = 1;
-    heaterItem.isAuto = false;
-    heaterItem.powerConsumption = 0;
-    heaterItem.isOn = false;
-    heaterItem.priority = 100;
-    heaterItem.isConnected = false;
-    heaterItem.setTargetTemperature(0.0f);
-    heaterItem.setTemperatureAdjust(0.0f);
+    heaterItem.setTargetTemperature(5.0f);
+    heaterItem.setTemperatureAdjust(5.0f);
 }
 
 void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& doc) {
@@ -782,6 +786,52 @@ void reportHeatersState() {
     }
 }
 
+void initHeaters() {
+for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+        loadState(heaterItems[i], i);
+        heaterItems[i].actualState = false;
+        heaterItems[i].wantsOn = false;
+        if (heaterItems[i].isAuto) {
+            heaterItems[i].isOn = false;
+        }
+        heaterItems[i].isConnected = checkSensorConnected(heaterItems[i].sensorAddress);
+        
+        sanityCheckHeater(heaterItems[i]);
+    }
+}
+
+void sanityCheckHeater(HeaterItem& heater) {
+    if (!heater.isConnected) {
+            heater.isAuto = false; //Items with no temperature sensor can't be in auto mode
+        }
+        if (heater.phase == HeaterItem::UNCONFIGURED || heater.port == HeaterItem::UNCONFIGURED) {
+            heater.isEnabled = false; //Can't work with unconfigured items
+        }
+}
+
+bool checkSensorConnected(HeaterItem& heater) {
+    for (uint8_t i=0; i<sensorsCount; i++) {
+        if (compareArrays(heater.sensorAddress, sensorAddresses[i], SENSOR_ADDR_LEN )) {
+            return true;
+        }
+    }
+    unconnectedSensors[unconfiguredSesorsCount++] = &heater;
+    return false;
+}
+
+void processHeaters() {
+    //sort
+    HeaterItem* sortedHeaters[NUMBER_OF_HEATERS];
+    HeaterItem::sortHeaters(sortedHeaters, NUMBER_OF_HEATERS);
+    //process manual heaters
+    for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+        HeaterItem* heater = sortedHeaters[i];
+        if (heater->isAuto == false) {
+
+        }
+    }
+}
+
 void setup()
 {
     pinMode(ETHERNET_LED, OUTPUT);
@@ -830,9 +880,7 @@ void setup()
     DEBUG_PRINTLN();
 
     //init heaterItems
-    for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-        loadState(heaterItems[i], i);
-    }
+    initHeaters();
 
     ISR_Timer.enable(TIMER_NUM_ONEWIRE_LED_BLINK);
     sensors.begin();

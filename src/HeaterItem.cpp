@@ -218,3 +218,22 @@ void HeaterItem::getIsEnabledCStr(char* val) {
 	else
 		strcpy(val, OFF);
 }
+
+void HeaterItem::sortHeaters(HeaterItem **array, int size) {
+	int jump = size;
+	bool swapped = true;
+	HeaterItem *tmp;
+	while(jump > 1 || swapped) {
+		if (jump > 1)
+			jump /= 1.24733;
+		swapped = false;
+		for (int i=0; i + jump < size; ++i) {
+			if(*array[i + jump] > *array[i]) {
+				tmp = array[i];
+				array[i] = array[i + jump];
+				array[i + jump] = tmp;
+				swapped = true;
+			}
+		}	
+	}
+}

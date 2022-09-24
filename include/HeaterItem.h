@@ -9,26 +9,30 @@
 
 //#define ADDR_LEN 7 //6 chars + /n
 #define SENSOR_ADDR_LEN	8
+#define SENSOR_ADDR_UNCONFIGURED {0,0,0,0,0,0,0,0};
+
 
 class HeaterItem
 {
 	//variables
 public:
-	String name;
-	String subtopic;
-	uint8_t address;
-	boolean isEnabled;
-	byte sensorAddress[SENSOR_ADDR_LEN];
-	byte port;
-	byte phase;
+	static constexpr uint8_t UNCONFIGURED = 255;
+
+	String name = "";
+	String subtopic = "";
+	uint8_t address = 0;
+	boolean isEnabled = false;
+	byte sensorAddress[SENSOR_ADDR_LEN] = SENSOR_ADDR_UNCONFIGURED;
+	byte port = UNCONFIGURED;
+	byte phase = UNCONFIGURED;
 	byte pin;
-	boolean isAuto;
-	uint16_t powerConsumption;
-	boolean isOn;
-	boolean wantsOn;
-	byte priority;
-	boolean isConnected;
-	boolean actualState;
+	boolean isAuto = false;
+	uint16_t powerConsumption = 0;
+	boolean isOn = false;
+	boolean wantsOn = false;
+	byte priority = 100;
+	boolean isConnected = false;
+	boolean actualState = false;
 protected:
 private:
 	float temperature = 0;
@@ -70,6 +74,8 @@ public:
 	void getConsumptionCStr(char* val);
 	bool setIsEnaled(const char* val);
 	void getIsEnabledCStr(char* val);
+
+	static void sortHeaters(HeaterItem **array, int size);
 protected:
 private:
 	HeaterItem(const HeaterItem& c);
