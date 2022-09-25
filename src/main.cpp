@@ -1076,7 +1076,7 @@ void loop()
     }
 
     if (flagEmergency) {
-        //TODO: Handle emergency
+        processHeaters();
     }
 
     if (flagRequestTemperatures) {
