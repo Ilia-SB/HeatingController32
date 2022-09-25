@@ -90,6 +90,10 @@ irqCallback isrTimerCallbacks[NUMBER_OF_ISR_TIMERS] = {
 
 volatile bool flagRequestTemperatures = false;
 volatile bool flagReadTemperatures = false;
+volatile bool newDataAvailable = false;
+
+bool flagEmergency = false;
+
 
 void ethernetLed(uint8_t);
 void mqttLed(uint8_t);
@@ -115,8 +119,8 @@ void reportHeatersState(void);
 void reportTemperatures(void);
 void getConsumptionData(const char*);
 void initHeaters(void);
-void processHeaters(void);
 bool checkSensorConnected(byte[SENSOR_ADDR_LEN]);
+void processHeaters(void);
 
 
 void ethernetLed(uint8_t mode) {
@@ -186,6 +190,9 @@ void getConsumptionData(const char* rawData) {
         DEBUG_PRINT(key); DEBUG_PRINT(" ");
         currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
         DEBUG_PRINTLN(currentConsumption[phase]);
+        if (currentConsumption[phase] > settings.consumptionLimit[phase]) {
+            flagEmergency = true;
+        }
     }
 }
 
@@ -316,6 +323,7 @@ void processCommand(char* item, char* command, char* payload) {
 
     mqttClient.publish(statusTopic, val, false);
     saveState(*heater);
+    newDataAvailable = true;
 }
 
 void mqttCallback(char* topic, byte* payload, const unsigned int len) {
@@ -568,6 +576,7 @@ void readTemperatures() {
     }
     flagReadTemperatures = false;
     reportTemperatures();
+    newDataAvailable = true;
 }
 
 void reportTemperatures() {
@@ -816,14 +825,102 @@ bool checkSensorConnected(HeaterItem& heater) {
 }
 
 void processHeaters() {
-    //sort
-    HeaterItem* sortedHeaters[NUMBER_OF_HEATERS];
-    HeaterItem::sortHeaters(sortedHeaters, NUMBER_OF_HEATERS);
-    //process manual heaters
-    for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-        HeaterItem* heater = sortedHeaters[i];
-        if (heater->isAuto == false) {
+    for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
+        int16_t availablePower = settings.consumptionLimit[phase] - currentConsumption[phase];
 
+        HeaterItem* manualHeaters[NUMBER_OF_HEATERS];
+        uint8_t manualHeatersNum = 0;
+        HeaterItem* autoHeaters[NUMBER_OF_HEATERS];
+        uint8_t autoHeatersNum = 0;
+        for(uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+            if(heaterItems[i].isEnabled && (heaterItems[i].phase - 1) == phase) {
+                if (heaterItems[i].isAuto) {
+                    autoHeaters[autoHeatersNum++] = &heaterItems[i];
+                } else {
+                    manualHeaters[manualHeatersNum++] = &heaterItems[i];
+                }
+            }
+        }
+        HeaterItem::sortHeaters(manualHeaters, manualHeatersNum);
+        HeaterItem::sortHeaters(autoHeaters, autoHeatersNum);
+        
+        //turn off
+        //manual heaters
+        DEBUG_PRINT("Phase ");DEBUG_PRINT(phase+1);DEBUG_PRINT(": Available power: ");DEBUG_PRINTLN(availablePower);
+        for (uint8_t i=0; i<manualHeatersNum; i++) {
+            HeaterItem* heater = manualHeaters[i];
+            if (heater->isAuto == false) {
+                if (heater->actualState == true && heater->wantsOn == false) {
+                    heater->actualState == false;
+                    availablePower += heater->powerConsumption;
+                    DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned OFF by user.");
+                }
+            }
+        }
+        //auto heaters
+        for (uint8_t i=0; i<autoHeatersNum; i++) {
+            HeaterItem* heater = autoHeaters[i];
+            if (heater->isAuto == false) {
+                if (heater->actualState == true && heater->wantsOn == false) {
+                    heater->actualState == false;
+                    availablePower += heater->powerConsumption;
+                    DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned OFF. Target temp reached.");
+                }
+            }
+        }
+        //emergency
+        if (flagEmergency) {
+            //TODO: sort by power consumption
+            //auto heaters
+            for (uint8_t i=autoHeatersNum; (availablePower < 0) && (i-- > 0);) {
+                HeaterItem* heater = autoHeaters[i];
+                if (heater->actualState == true) {
+                    heater->actualState = false;
+                    availablePower += heater->powerConsumption;
+                    DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned OFF. Not enough power.");
+                }
+            }
+            //manual heaters
+            for (uint8_t i=manualHeatersNum; (availablePower < 0) && (i-- > 0);) {
+                HeaterItem* heater = manualHeaters[i];
+                if (heater->actualState == true) {
+                    heater->actualState = false;
+                    availablePower += heater->powerConsumption;
+                    DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned OFF. Not enough power.");
+                }
+            }
+            return;
+        }
+
+        if (availablePower < 0)
+            return;
+
+        //turn on
+        //manual heaters
+        for (uint8_t i=0; i<manualHeatersNum; i++) {
+            HeaterItem* heater = manualHeaters[i];
+            if (heater->wantsOn && heater->actualState == false) {
+                if (heater->powerConsumption < availablePower) {
+                    heater->actualState = true;
+                    availablePower -= heater->powerConsumption;
+                    DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned ON by user.");
+                } else {
+                    DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" failed to turn ON. Not enough power.");
+                }
+            }
+        }
+        //auto heaters
+        for (uint8_t i=0; i<autoHeatersNum; i++) {
+            HeaterItem* heater = autoHeaters[i];
+            if (heater->wantsOn && heater->actualState == false) {
+                if (heater->powerConsumption < availablePower) {
+                    heater->actualState = true;
+                    availablePower -= heater->powerConsumption;
+                    DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned ON by user.");
+                } else {
+                    DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" failed to turn ON. Not enough power.");
+                }
+            }
         }
     }
 }
@@ -951,11 +1048,19 @@ void loop()
         mqttConnect();
     }
 
+    if (flagEmergency) {
+        //TODO: Handle emergency
+    }
+
     if (flagRequestTemperatures) {
         requestTemperatures();
     }
 
     if (flagReadTemperatures) {
         readTemperatures();
+    }
+
+    if (newDataAvailable) {
+        processHeaters();
     }
 }
