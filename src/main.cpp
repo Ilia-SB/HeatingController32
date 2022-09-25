@@ -94,6 +94,9 @@ volatile bool newDataAvailable = false;
 
 bool flagEmergency = false;
 
+unsigned long consumptionDataReceived[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
+unsigned long emergencyHandled = 0;
+
 
 void ethernetLed(uint8_t);
 void mqttLed(uint8_t);
@@ -121,6 +124,7 @@ void getConsumptionData(const char*);
 void initHeaters(void);
 bool checkSensorConnected(byte[SENSOR_ADDR_LEN]);
 void processHeaters(void);
+uint16_t calculateHeatersConsumption(uint8_t phase);
 
 
 void ethernetLed(uint8_t mode) {
@@ -185,13 +189,18 @@ void getConsumptionData(const char* rawData) {
 
     for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
         char key[5] = "POW";
-        char idx = phase + 1 + 48; //convert to ascii
+        char idx = phase + 1 + 48; //convert (phase+1) to ascii
         strncat(key, &idx, 1);
         DEBUG_PRINT(key); DEBUG_PRINT(" ");
-        currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
-        DEBUG_PRINTLN(currentConsumption[phase]);
-        if (currentConsumption[phase] > settings.consumptionLimit[phase]) {
-            flagEmergency = true;
+        if (doc.containsKey(key)) {
+            currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
+            consumptionDataReceived[phase] = millis();
+            DEBUG_PRINTLN(currentConsumption[phase]);
+            if (currentConsumption[phase] > settings.consumptionLimit[phase]) {
+                if (millis() - emergencyHandled > 1000) {
+                    flagEmergency = true;
+                }
+            }
         }
     }
 }
@@ -826,7 +835,13 @@ bool checkSensorConnected(HeaterItem& heater) {
 
 void processHeaters() {
     for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
-        int16_t availablePower = settings.consumptionLimit[phase] - currentConsumption[phase];
+        int16_t availablePower = 0;
+        if (millis() - consumptionDataReceived[phase] < 1000) { //if data from the energy meter is not older than 1 sec.
+            availablePower = settings.consumptionLimit[phase] - currentConsumption[phase];
+        } else {
+            DEBUG_PRINTLN("Using estimated power consumption");
+            availablePower = settings.consumptionLimit[phase] - calculateHeatersConsumption(phase);
+        }
 
         HeaterItem* manualHeaters[NUMBER_OF_HEATERS];
         uint8_t manualHeatersNum = 0;
@@ -889,6 +904,8 @@ void processHeaters() {
                     DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned OFF. Not enough power.");
                 }
             }
+            emergencyHandled = millis();
+            flagEmergency = false;
             return;
         }
 
@@ -923,6 +940,16 @@ void processHeaters() {
             }
         }
     }
+}
+
+uint16_t calculateHeatersConsumption(uint8_t phase) {
+    uint16_t consumption = 0;
+    for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+        if (heaterItems[i].phase == phase + 1 && heaterItems[i].isEnabled && heaterItems[i].actualState == true) {
+            consumption += heaterItems[i].powerConsumption;
+        }
+    }
+    return consumption;
 }
 
 void setup()
