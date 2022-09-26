@@ -182,6 +182,7 @@ void heaterItemPortCallback(uint8_t port, bool state) {
         bitSet(outputs, port - 1); //physical port numbers are 1-based, thus -1
     else
         bitClear(outputs, port - 1);
+    updateOutputs(outputs);
 }
 
 void setPorts(boolean ports[NUMBER_OF_PORTS]) {
@@ -255,7 +256,7 @@ void processCommand(char* item, char* command, char* payload) {
     uint8_t heaterNum = 0;
     bool found = false;
     for(uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-        if (strcasecmp(heaterItems[i].subtopic.c_str(), item) == 0) {
+        if (strcasecmp(heaterItems[i].getSubtopic().c_str(), item) == 0) {
             found = true;
             heaterNum = i;
             break;
@@ -268,7 +269,7 @@ void processCommand(char* item, char* command, char* payload) {
 
     strcpy(statusTopic, STATUS_TOPIC);
     strcat(statusTopic, "/");
-    strcat(statusTopic, heaterItems[heaterNum].subtopic.c_str());
+    strcat(statusTopic, heaterItems[heaterNum].getSubtopic().c_str());
     strcat(statusTopic, "/");
 
     HeaterItem* heater = &heaterItems[heaterNum];
@@ -303,9 +304,9 @@ void processCommand(char* item, char* command, char* payload) {
     }
     if (strcasecmp(command, SET_SENSOR) == 0) {
         DEBUG_PRINT("setSensor: "); DEBUG_PRINTLN(payload);
-        if (heater->setSensor(payload)) {
+        if (heater->setSensorAddress(payload)) {
             sanityCheckHeater(*heater);
-            heater->getSensorCStr(val);
+            heater->getSensorAddressCStr(val);
             strcat(statusTopic, SET_SENSOR);
         }
     }
@@ -325,8 +326,8 @@ void processCommand(char* item, char* command, char* payload) {
         }
     }
     if (strcasecmp(command, SET_CONSUMPTION) == 0) {
-        if (heater->setConsumption(payload)) {
-            heater->getConsumptionCStr(val);
+        if (heater->setPowerConsumption(payload)) {
+            heater->getPowerConsumptionCStr(val);
             strcat(statusTopic, SET_CONSUMPTION);
             mqttClient.publish(statusTopic, val, false);
             saveState(*heater);
@@ -405,6 +406,7 @@ bool mqttConnect() {
         mqttClient.subscribe(ENERGY_METER_TOPIC);
         ISR_Timer.disable(TIMER_NUM_MQTT_LED_BLINK);
         mqttLed(HIGH);
+        reportHeatersState();
         return true;
     }
     else {
@@ -488,7 +490,7 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += "<p onclick=\"showHideItem('";
             retValue += itemNum;
             retValue += "')\" class=\"item\">";
-            retValue += heaterItems[i].name;
+            retValue += heaterItems[i].getName();
             retValue += "</p><form style=\"color:#eaeaea;\" method=\"post\" action=\"/settings\"><fieldset id=\"item_";
             retValue += itemNum;
             retValue += "\" style=\"display: none;\">";
@@ -496,11 +498,11 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += String(i);
             retValue += "\">";
             retValue += "<div style=\"color:#eaeaea;text-align: left;\"><table><tbody><tr><td class=\"name\">Name</td><td class=\"value\"><input type=\"text\" name=\"name\" value=\"";
-            retValue += heaterItems[i].name;
+            retValue += heaterItems[i].getName();
             retValue += "\"></td></tr><tr><td class=\"name\">Sensor</td><td class=\"value\"><select name=\"sensor\">";
             retValue += "<option value=\"";
             String setSensor;
-            byteArrayToHexString(heaterItems[i].sensorAddress, SENSOR_ADDR_LEN, setSensor);
+            byteArrayToHexString(heaterItems[i].getSensorAddress(), SENSOR_ADDR_LEN, setSensor);
             retValue += String(-1);
             retValue += "\">";
             retValue += "* ";
@@ -514,13 +516,13 @@ String webServerPlaceholderProcessor(const String& placeholder) {
                 retValue += "</option>";
             }
             retValue += "</td></tr><tr><td class=\"name\">Subtopic</td><td class=\"value\"><input type=\"text\" name=\"subtopic\" value=\"";
-            retValue += heaterItems[i].subtopic;
+            retValue += heaterItems[i].getSubtopic();
             retValue += "\"></td></tr><tr><td class=\"name\">Port</td><td class=\"value\"><select name=\"port\">";
             for (uint8_t j=1; j<NUMBER_OF_HEATERS+1; j++) {
                 retValue += "<option value=\"";
                 retValue += String(j);
                 retValue += "\"";
-                if (j==heaterItems[i].port) {
+                if (j==heaterItems[i].getPort()) {
                     retValue += " selected=\"selected\"";
                 }
                 retValue += ">";
@@ -532,7 +534,7 @@ String webServerPlaceholderProcessor(const String& placeholder) {
                 retValue += "<option value=\"";
                 retValue += String(j);
                 retValue += "\"";
-                if (j==heaterItems[i].phase) {
+                if (j==heaterItems[i].getPhase()) {
                     retValue += " selected=\"selected\"";
                 }
                 retValue += ">";
@@ -540,9 +542,9 @@ String webServerPlaceholderProcessor(const String& placeholder) {
                 retValue += "</option>";
             }
             retValue += "</td></tr><tr><td class=\"name\">Consumption</td><td class=\"value\"><input type=\"text\" name=\"consumption\" value=\"";
-            retValue += String(heaterItems[i].powerConsumption);
+            retValue += String(heaterItems[i].getPowerConsumption());
             retValue += "\"></td></tr><tr><td class=\"name\">Priority</td><td class=\"value\"><input type=\"text\" name=\"priority\" value=\"";
-            retValue += String(heaterItems[i].priority);
+            retValue += String(heaterItems[i].getPriority());
             retValue += "\"></td></tr></tbody></table><button name=\"save\" type=\"submit\" class=\"bgrn\">Save</button></div></fieldset></form>";
         }
     }
@@ -585,7 +587,7 @@ void readTemperaturesISR() {
 void readTemperatures() {
     DEBUG_PRINTLN("Reading temperatures...");
     for (uint8_t i = 0; i < NUMBER_OF_HEATERS; i++) {
-        float _temperature = sensors.getTempC(heaterItems[i].sensorAddress);
+        float _temperature = sensors.getTempC(heaterItems[i].getSensorAddress());
         //DEBUG_PRINT("    ");DEBUG_PRINTLN(_temperature);
         //TODO: check the value for errors and report
         //TODO: CRC_ERROR
@@ -612,33 +614,33 @@ void setDefaultSettings(Settings& settings) {
 }
 
 void setDefaults(HeaterItem& heaterItem) {
-    heaterItem.name = "Heater " + String(heaterItem.address);
+    heaterItem.setName("Heater " + String(heaterItem.getAddress()));
     String addr;
     heaterItem.getAddressString(addr, "%06d");
-    heaterItem.subtopic = "item_" + addr;
+    heaterItem.setSubtopic("item_" + addr);
     heaterItem.setTargetTemperature(5.0f);
     heaterItem.setTemperatureAdjust(5.0f);
 }
 
 void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& doc) {
-    doc["name"] = heaterItem.name;
-    doc["address"] = heaterItem.address;
-    doc["subtopic"] = heaterItem.subtopic;
-    doc["isEnabled"] = heaterItem.isEnabled;
+    doc["name"] = heaterItem.getName();
+    doc["address"] = heaterItem.getAddress();
+    doc["subtopic"] = heaterItem.getSubtopic();
+    doc["isEnabled"] = heaterItem.getIsEnabled();
     JsonArray sensorAddress = doc.createNestedArray("sensorAddress");
     for (uint8_t i=0; i<SENSOR_ADDR_LEN; i++) {
-        sensorAddress.add(heaterItem.sensorAddress[i]);
+        sensorAddress.add(heaterItem.getSensorAddress()[i]);
     }
     char addr[3*SENSOR_ADDR_LEN];
-    heaterItem.getSensorCStr(addr);
+    heaterItem.getSensorAddressCStr(addr);
     doc["sensorAddressString"] = addr;
-    doc["port"] = heaterItem.port;
-    doc["phase"] = heaterItem.phase;
-    doc["isAuto"] = heaterItem.isAuto;
-    doc["powerConsumption"] = heaterItem.powerConsumption;
-    doc["isOn"] = heaterItem.isOn;
-    doc["priority"] = heaterItem.priority;
-    doc["isConnected"] = heaterItem.isConnected;
+    doc["port"] = heaterItem.getPort();
+    doc["phase"] = heaterItem.getPhase();
+    doc["isAuto"] = heaterItem.getIsAuto();
+    doc["powerConsumption"] = heaterItem.getPowerConsumption();
+    doc["isOn"] = heaterItem.getIsOn();
+    doc["priority"] = heaterItem.getPriority();
+    doc["isConnected"] = heaterItem.getIsConnected();
     doc["targetTemperature"] = heaterItem.getTargetTemperature();
     doc["temperatureAdjust"] = heaterItem.getTemperatureAdjust();
 }
@@ -668,7 +670,7 @@ void saveSettings(Settings& settings) {
 
 void saveState(HeaterItem& heaterItem) {
     String fileName = "/item";
-    fileName += String(heaterItem.address);
+    fileName += String(heaterItem.getAddress());
 
     File file = SPIFFS.open(fileName, FILE_WRITE, true);
     
@@ -728,7 +730,7 @@ void deleteSettings() {
 
 void loadState(HeaterItem& heaterItem) {
     String fileName = "/item";
-    fileName += String(heaterItem.address);
+    fileName += String(heaterItem.getAddress());
 
     if(!SPIFFS.exists(fileName)) {
         setDefaults(heaterItem);
@@ -739,28 +741,30 @@ void loadState(HeaterItem& heaterItem) {
         StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
         deserializeJson(doc, file);
 
-        heaterItem.name = doc["name"].as<String>();
-        heaterItem.address = doc["address"];
-        heaterItem.subtopic = doc["subtopic"].as<String>();
-        heaterItem.isEnabled = doc["isEnabled"];
+        heaterItem.setName(doc["name"].as<String>());
+        heaterItem.setAddress(doc["address"]);
+        heaterItem.setSubtopic(doc["subtopic"].as<String>());
+        heaterItem.setIsEnabled(doc["isEnabled"]);
         JsonArray sensorAddress = doc["sensorAddress"];
+        byte addr[SENSOR_ADDR_LEN];
         for (uint8_t i=0; i<SENSOR_ADDR_LEN; i++) {
-            heaterItem.sensorAddress[i] = sensorAddress.getElement(i).as<byte>();
+            addr[i] = sensorAddress.getElement(i).as<byte>();
         }
-        heaterItem.port = doc["port"];
-        heaterItem.phase = doc["phase"];
-        heaterItem.isAuto = doc["isAuto"];
-        heaterItem.powerConsumption = doc["powerConsumption"];
-        heaterItem.isOn = doc["isOn"];
-        heaterItem.priority = doc["priority"];
-        heaterItem.isConnected = doc["isConnected"];
+        heaterItem.setSensorAddress(addr);
+        heaterItem.setPort(doc["port"].as<uint8_t>());
+        heaterItem.setPhase(doc["phase"]);
+        heaterItem.setIsAuto(doc["isAuto"].as<bool>());
+        heaterItem.setPowerConsumption((uint16_t)doc["powerConsumption"]);
+        heaterItem.setIsOn(doc["isOn"].as<bool>());
+        heaterItem.setPriority(doc["priority"].as<uint8_t>());
+        heaterItem.setIsConnected(doc["isConnected"]);
         heaterItem.setTargetTemperature(doc["targetTemperature"].as<float>());
         heaterItem.setTemperatureAdjust(doc["temperatureAdjust"].as<float>());
     }
 }
 
 void loadState(HeaterItem& heaterItem, uint8_t itemNumber) {
-    heaterItem.address = itemNumber;
+    heaterItem.setAddress(itemNumber);
     loadState(heaterItem);
 }
 
@@ -775,28 +779,28 @@ void processSettingsForm(AsyncWebServerRequest* request) {
     }
 
     if (request->hasParam("name", true)) {
-        heaterItems[itemNo].name = request->getParam("name", true)->value();
+        heaterItems[itemNo].setName(request->getParam("name", true)->value());
     }
     if (request->hasParam("sensor", true)) {
         int8_t sensorNum = (int8_t)(request->getParam("sensor", true)->value().toInt());
         if (sensorNum >=0) {
-            memcpy(heaterItems[itemNo].sensorAddress, sensorAddresses[sensorNum], SENSOR_ADDR_LEN);
+            heaterItems[itemNo].setSensorAddress(sensorAddresses[sensorNum]);
         }
     }
     if (request->hasParam("subtopic", true)) {
-        heaterItems[itemNo].subtopic = request->getParam("subtopic", true)->value();
+        heaterItems[itemNo].setSubtopic(request->getParam("subtopic", true)->value());
     }
     if (request->hasParam("port", true)) {
-        heaterItems[itemNo].port = (uint8_t)(request->getParam("port", true)->value().toInt());
+        heaterItems[itemNo].setPort((uint8_t)(request->getParam("port", true)->value().toInt()));
     }
     if (request->hasParam("phase", true)) {
-        heaterItems[itemNo].phase = (uint8_t)(request->getParam("phase", true)->value().toInt());
+        heaterItems[itemNo].setPhase((uint8_t)(request->getParam("phase", true)->value().toInt()));
     }
     if (request->hasParam("consumption", true)) {
-        heaterItems[itemNo].powerConsumption = (uint16_t)(request->getParam("consumption", true)->value().toInt());
+        heaterItems[itemNo].setPowerConsumption((uint16_t)(request->getParam("consumption", true)->value().toInt()));
     }
     if (request->hasParam("priority", true)) {
-        heaterItems[itemNo].priority = (uint8_t)(request->getParam("priority", true)->value().toInt());
+        heaterItems[itemNo].setPriority((uint8_t)(request->getParam("priority", true)->value().toInt()));
     }
 
     saveState(heaterItems[itemNo]);
@@ -810,7 +814,7 @@ void reportHeatersState() {
         String mqttTopic;
         mqttTopic += STATUS_TOPIC;
         mqttTopic += "/";
-        mqttTopic += heaterItems[i].subtopic;
+        mqttTopic += heaterItems[i].getSubtopic();
         mqttTopic += "/STATE";
 
         String mqttPayload;
@@ -835,28 +839,28 @@ for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
         heaterItems[i].setOutputCB(heaterItemPortCallback);
         loadState(heaterItems[i], i);
         heaterItems[i].setActualState(false);
-        heaterItems[i].wantsOn = false;
-        if (heaterItems[i].isAuto) {
-            heaterItems[i].isOn = false;
+        heaterItems[i].setWantsOn(false);
+        if (heaterItems[i].getIsAuto()) {
+            heaterItems[i].setIsOn(false);
         }
-        heaterItems[i].isConnected = checkSensorConnected(heaterItems[i]);
+        heaterItems[i].setIsConnected(checkSensorConnected(heaterItems[i]));
         
         sanityCheckHeater(heaterItems[i]);
     }
 }
 
 void sanityCheckHeater(HeaterItem& heater) {
-    if (!heater.isConnected) {
-            heater.isAuto = false; //Items with no temperature sensor can't be in auto mode
+    if (!heater.getIsConnected()) {
+            heater.setIsAuto(false); //Items with no temperature sensor can't be in auto mode
         }
-        if (heater.phase == HeaterItem::UNCONFIGURED || heater.port == HeaterItem::UNCONFIGURED) {
-            heater.isEnabled = false; //Can't work with unconfigured items
+        if (heater.getPhase() == HeaterItem::UNCONFIGURED || heater.getPort() == HeaterItem::UNCONFIGURED) {
+            heater.setIsEnabled(false); //Can't work with unconfigured items
         }
 }
 
 bool checkSensorConnected(HeaterItem& heater) {
     for (uint8_t i=0; i<sensorsCount; i++) {
-        if (compareArrays(heater.sensorAddress, sensorAddresses[i], SENSOR_ADDR_LEN )) {
+        if (compareArrays(heater.getSensorAddress(), sensorAddresses[i], SENSOR_ADDR_LEN )) {
             return true;
         }
     }
@@ -866,6 +870,7 @@ bool checkSensorConnected(HeaterItem& heater) {
 
 void processHeaters() {
     for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
+        newDataAvailable = false;
         int16_t availablePower = 0;
         if (millis() - consumptionDataReceived[phase] < 1000) { //if data from the energy meter is not older than 1 sec.
             availablePower = settings.consumptionLimit[phase] - currentConsumption[phase];
@@ -879,8 +884,8 @@ void processHeaters() {
         HeaterItem* autoHeaters[NUMBER_OF_HEATERS];
         uint8_t autoHeatersNum = 0;
         for(uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-            if(heaterItems[i].isEnabled && (heaterItems[i].phase - 1) == phase) {
-                if (heaterItems[i].isAuto) {
+            if(heaterItems[i].getIsEnabled() == true && (heaterItems[i].getPhase() - 1) == phase) {
+                if (heaterItems[i].getIsAuto() == true) {
                     autoHeaters[autoHeatersNum++] = &heaterItems[i];
                 } else {
                     manualHeaters[manualHeatersNum++] = &heaterItems[i];
@@ -895,22 +900,22 @@ void processHeaters() {
         DEBUG_PRINT("Phase ");DEBUG_PRINT(phase+1);DEBUG_PRINT(": Available power: ");DEBUG_PRINTLN(availablePower);
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
-            if (heater->isAuto == false) {
-                if (heater->getActualState() == true && heater->wantsOn == false) {
+            if (heater->getIsAuto() == false) {
+                if (heater->getActualState() == true && heater->getWantsOn() == false) {
                     heater->setActualState(false);
-                    availablePower += heater->powerConsumption;
-                    DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned OFF by user.");
+                    availablePower += heater->getPowerConsumption();
+                    DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF by user.");
                 }
             }
         }
         //auto heaters
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
-            if (heater->isAuto == false) {
-                if (heater->getActualState() == true && heater->wantsOn == false) {
+            if (heater->getIsAuto() == false) {
+                if (heater->getActualState() == true && heater->getWantsOn() == false) {
                     heater->setActualState(false);
-                    availablePower += heater->powerConsumption;
-                    DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned OFF. Target temp reached.");
+                    availablePower += heater->getPowerConsumption();
+                    DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF. Target temp reached.");
                 }
             }
         }
@@ -922,8 +927,8 @@ void processHeaters() {
                 HeaterItem* heater = autoHeaters[i];
                 if (heater->getActualState() == true) {
                     heater->setActualState(false);
-                    availablePower += heater->powerConsumption;
-                    DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned OFF. Not enough power.");
+                    availablePower += heater->getPowerConsumption();
+                    DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF. Not enough power.");
                 }
             }
             //manual heaters
@@ -931,8 +936,8 @@ void processHeaters() {
                 HeaterItem* heater = manualHeaters[i];
                 if (heater->getActualState() == true) {
                     heater->setActualState(false);
-                    availablePower += heater->powerConsumption;
-                    DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned OFF. Not enough power.");
+                    availablePower += heater->getPowerConsumption();
+                    DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF. Not enough power.");
                 }
             }
             emergencyHandled = millis();
@@ -947,26 +952,26 @@ void processHeaters() {
         //manual heaters
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
-            if (heater->wantsOn && heater->getActualState() == false) {
-                if (heater->powerConsumption < availablePower) {
+            if (heater->getWantsOn() == true && heater->getActualState() == false) {
+                if (heater->getPowerConsumption() < availablePower) {
                     heater->setActualState(true);
-                    availablePower -= heater->powerConsumption;
-                    DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned ON by user.");
+                    availablePower -= heater->getPowerConsumption();
+                    DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned ON by user.");
                 } else {
-                    DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" failed to turn ON. Not enough power.");
+                    DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" failed to turn ON. Not enough power.");
                 }
             }
         }
         //auto heaters
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
-            if (heater->wantsOn && heater->getActualState() == false) {
-                if (heater->powerConsumption < availablePower) {
+            if (heater->getWantsOn() == true && heater->getActualState() == false) {
+                if (heater->getPowerConsumption() < availablePower) {
                     heater->setActualState(true);
-                    availablePower -= heater->powerConsumption;
-                    DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned ON by user.");
+                    availablePower -= heater->getPowerConsumption();
+                    DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned ON by user.");
                 } else {
-                    DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" failed to turn ON. Not enough power.");
+                    DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" failed to turn ON. Not enough power.");
                 }
             }
         }
@@ -976,8 +981,8 @@ void processHeaters() {
 uint16_t calculateHeatersConsumption(uint8_t phase) {
     uint16_t consumption = 0;
     for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-        if (heaterItems[i].phase == phase + 1 && heaterItems[i].isEnabled && heaterItems[i].getActualState() == true) {
-            consumption += heaterItems[i].powerConsumption;
+        if (heaterItems[i].getPhase() == phase + 1 && heaterItems[i].getIsEnabled() == true && heaterItems[i].getActualState() == true) {
+            consumption += heaterItems[i].getPowerConsumption();
         }
     }
     return consumption;
@@ -1030,9 +1035,6 @@ void setup()
     }
     DEBUG_PRINTLN();
 
-    //init heaterItems
-    initHeaters();
-
     ISR_Timer.enable(TIMER_NUM_ONEWIRE_LED_BLINK);
     sensors.begin();
     sensorsCount = sensors.getDS18Count();
@@ -1052,6 +1054,9 @@ void setup()
         DEBUG_PRINT(temperatures[i]); DEBUG_PRINTLN();
     }
     DEBUG_PRINTLN();
+
+    //init heaterItems
+    initHeaters();
  
     ISR_Timer.enable(TIMER_NUM_ETHERNET_LED_BLINK);
     WiFi.onEvent(WiFiEvent);
@@ -1091,7 +1096,6 @@ void setup()
 
     ISR_Timer.enable(TIMER_NUM_REQUEST_TEMPERATURES);
 
-    reportHeatersState();
     DEBUG_PRINTLN("Entering main loop.");
 }
 

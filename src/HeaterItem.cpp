@@ -52,7 +52,7 @@ float HeaterItem::getTemperature() {
 //	array[2] = abs(temp) * 100 - array[1] * 100;
 //}
 
-void HeaterItem::setTargetTemperature(float temp) {
+void HeaterItem::setTargetTemperature(const float temp) {
 	targetTemperature = temp;
 	processTemperature();
 }
@@ -61,7 +61,7 @@ float HeaterItem::getTargetTemperature() {
 	return targetTemperature;
 }
 
-void HeaterItem::setTemperatureAdjust(float temp) {
+void HeaterItem::setTemperatureAdjust(const float temp) {
 	temperatureAdjust = temp;
 	processTemperature();
 }
@@ -91,11 +91,16 @@ void HeaterItem::getAddressString(String& string, const char* format) {
 	string = String(buffer);
 }
 
+void HeaterItem::setIsAuto(const bool b) {
+	isAuto = b;
+	processTemperature();
+}
+
 bool HeaterItem::setIsAuto(const char* val) {
 	if (strcmp(val, ON) == 0)
-		isAuto = true;
+		setIsAuto(true);
 	else if (strcmp(val, OFF) == 0)
-		isAuto = true;
+		setIsAuto(false);
 	else
 		return false;
 	
@@ -112,10 +117,15 @@ void HeaterItem::getIsAutoCStr(char* val) {
 bool HeaterItem::setIsOn(const char* val) {
 	if (isAuto)
 		return false;
-	if (strcmp(val, ON) == 0)
-		isOn = true;
-	else if (strcmp(val, OFF) == 0)
-		isOn = false;
+
+	if (strcmp(val, ON) == 0) {
+		setIsOn(true);
+		setWantsOn(true);
+	}
+	else if (strcmp(val, OFF) == 0) {
+		setIsOn(false);
+		setWantsOn(false);
+	}
 	else
 		return false;
 
@@ -155,11 +165,11 @@ void HeaterItem::getTargetTemperatureCStr(char* val) {
 	dtostrf((double)targetTemperature, 5, 1, val);
 }
 
-bool HeaterItem::setSensor(const char* val) {
+bool HeaterItem::setSensorAddress(const char* val) {
 	return hexCStringToByteArray(val, sensorAddress, SENSOR_ADDR_LEN);
 }
 
-void HeaterItem::getSensorCStr(char* val) {
+void HeaterItem::getSensorAddressCStr(char* val) {
 	byteArrayToHexCString(sensorAddress, SENSOR_ADDR_LEN, val);
 }
 
@@ -168,7 +178,7 @@ bool HeaterItem::setPort(const char* val) {
 	if (_port <=0)
 		return false;
 
-	port = _port;
+	setPort(_port);
 	return true;
 }
 
@@ -188,23 +198,23 @@ void HeaterItem::getTemperatureAdjustCStr(char* val) {
 	dtostrf((double)temperatureAdjust, 5, 1, val);
 }
 
-bool HeaterItem::setConsumption(const char* val) {
+bool HeaterItem::setPowerConsumption(const char* val) {
 	uint16_t _powerConsumption = atoi(val);
 	if (_powerConsumption <= 0)
 		return false;
-	powerConsumption = _powerConsumption;
+	setPowerConsumption(_powerConsumption);
 	return true;
 }
 
-void HeaterItem::getConsumptionCStr(char* val) {
+void HeaterItem::getPowerConsumptionCStr(char* val) {
 	itoa(powerConsumption, val, 10);
 }
 
 bool HeaterItem::setIsEnaled(const char* val) {
 	if (strcmp(val, ON) == 0)
-		isEnabled = true;
+		setIsEnabled(true);
 	else if (strcmp(val, OFF) == 0)
-		isEnabled = false;
+		setIsEnabled(false);
 	else
 		return false;
 
@@ -241,7 +251,7 @@ void HeaterItem::setOutputCB(OutputCB callback) {
 	setPortCallback = callback;
 }
 
-bool HeaterItem::setActualState(bool state) {
+bool HeaterItem::setActualState(const bool state) {
 	actualState = state;
 	setPortCallback(port, actualState);
 	return true;
@@ -251,7 +261,7 @@ bool HeaterItem::getActualState() {
 	return actualState;
 }
 
-bool HeaterItem::setHysteresis(float h) {
+bool HeaterItem::setHysteresis(const float h) {
 	hysteresis = h;
 	processTemperature();
 	return true;
