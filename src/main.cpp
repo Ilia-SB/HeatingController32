@@ -123,9 +123,11 @@ void reportHeatersState(void);
 void reportTemperatures(void);
 void getConsumptionData(const char*);
 void initHeaters(void);
-bool checkSensorConnected(byte[SENSOR_ADDR_LEN]);
+bool checkSensorConnected(HeaterItem& heater);
 void processHeaters(void);
-uint16_t calculateHeatersConsumption(uint8_t phase);
+uint16_t calculateHeatersConsumption(uint8_t);
+void sanityCheckHeater(HeaterItem&);
+void deleteSettings(void);
 
 
 void ethernetLed(uint8_t mode) {
@@ -837,7 +839,7 @@ for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
         if (heaterItems[i].isAuto) {
             heaterItems[i].isOn = false;
         }
-        heaterItems[i].isConnected = checkSensorConnected(heaterItems[i].sensorAddress);
+        heaterItems[i].isConnected = checkSensorConnected(heaterItems[i]);
         
         sanityCheckHeater(heaterItems[i]);
     }
