@@ -33,7 +33,7 @@ PubSubClient mqttClient(ethClient);
 OneWire oneWire(SENSOR);
 DallasTemperature sensors(&oneWire);
 
-byte outputs = 0;
+uint16_t outputs = 0;
 
 uint16_t currentConsumption[3];
 
@@ -102,6 +102,7 @@ void ethernetLed(uint8_t);
 void mqttLed(uint8_t);
 void oneWireLed(uint8_t);
 void updateOutputs(uint16_t);
+void heaterItemPortCallback(uint8_t, bool);
 void setPorts(boolean[]);
 void processCommand(char*, char*, char*);
 void mqttCallback(char*, byte*, const unsigned int);
@@ -172,6 +173,13 @@ void updateOutputs(uint16_t outputs) {
     shiftOut(LS_DATA, LS_CLK, MSBFIRST, outputs >> 8);
     shiftOut(LS_DATA, LS_CLK, MSBFIRST, outputs);
     digitalWrite(LS_STB, HIGH);
+}
+
+void heaterItemPortCallback(uint8_t port, bool state) {
+    if (state == true)
+        bitSet(outputs, port - 1); //physical port numbers are 1-based, thus -1
+    else
+        bitClear(outputs, port - 1);
 }
 
 void setPorts(boolean ports[NUMBER_OF_PORTS]) {
@@ -518,7 +526,7 @@ String webServerPlaceholderProcessor(const String& placeholder) {
                 retValue += "</option>";
             }
             retValue += "</td></tr><tr><td class=\"name\">Phase</td><td class=\"value\"><select name=\"phase\">";
-            for (uint8_t j=0; j<NUMBER_OF_PHASES; j++) {
+            for (uint8_t j=1; j<NUMBER_OF_PHASES+1; j++) {
                 retValue += "<option value=\"";
                 retValue += String(j);
                 retValue += "\"";
@@ -802,8 +810,9 @@ void reportHeatersState() {
 
 void initHeaters() {
 for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+        heaterItems[i].setOutputCB(heaterItemPortCallback);
         loadState(heaterItems[i], i);
-        heaterItems[i].actualState = false;
+        heaterItems[i].setActualState(false);
         heaterItems[i].wantsOn = false;
         if (heaterItems[i].isAuto) {
             heaterItems[i].isOn = false;
@@ -834,6 +843,7 @@ bool checkSensorConnected(HeaterItem& heater) {
 }
 
 void processHeaters() {
+    //TODO: actually turn relays on and off
     for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
         int16_t availablePower = 0;
         if (millis() - consumptionDataReceived[phase] < 1000) { //if data from the energy meter is not older than 1 sec.
@@ -865,8 +875,8 @@ void processHeaters() {
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
             if (heater->isAuto == false) {
-                if (heater->actualState == true && heater->wantsOn == false) {
-                    heater->actualState == false;
+                if (heater->getActualState() == true && heater->wantsOn == false) {
+                    heater->setActualState(false);
                     availablePower += heater->powerConsumption;
                     DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned OFF by user.");
                 }
@@ -876,8 +886,8 @@ void processHeaters() {
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
             if (heater->isAuto == false) {
-                if (heater->actualState == true && heater->wantsOn == false) {
-                    heater->actualState == false;
+                if (heater->getActualState() == true && heater->wantsOn == false) {
+                    heater->setActualState(false);
                     availablePower += heater->powerConsumption;
                     DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned OFF. Target temp reached.");
                 }
@@ -889,8 +899,8 @@ void processHeaters() {
             //auto heaters
             for (uint8_t i=autoHeatersNum; (availablePower < 0) && (i-- > 0);) {
                 HeaterItem* heater = autoHeaters[i];
-                if (heater->actualState == true) {
-                    heater->actualState = false;
+                if (heater->getActualState() == true) {
+                    heater->setActualState(false);
                     availablePower += heater->powerConsumption;
                     DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned OFF. Not enough power.");
                 }
@@ -898,8 +908,8 @@ void processHeaters() {
             //manual heaters
             for (uint8_t i=manualHeatersNum; (availablePower < 0) && (i-- > 0);) {
                 HeaterItem* heater = manualHeaters[i];
-                if (heater->actualState == true) {
-                    heater->actualState = false;
+                if (heater->getActualState() == true) {
+                    heater->setActualState(false);
                     availablePower += heater->powerConsumption;
                     DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned OFF. Not enough power.");
                 }
@@ -916,9 +926,9 @@ void processHeaters() {
         //manual heaters
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
-            if (heater->wantsOn && heater->actualState == false) {
+            if (heater->wantsOn && heater->getActualState() == false) {
                 if (heater->powerConsumption < availablePower) {
-                    heater->actualState = true;
+                    heater->setActualState(true);
                     availablePower -= heater->powerConsumption;
                     DEBUG_PRINT("Manual heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned ON by user.");
                 } else {
@@ -929,9 +939,9 @@ void processHeaters() {
         //auto heaters
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
-            if (heater->wantsOn && heater->actualState == false) {
+            if (heater->wantsOn && heater->getActualState() == false) {
                 if (heater->powerConsumption < availablePower) {
-                    heater->actualState = true;
+                    heater->setActualState(true);
                     availablePower -= heater->powerConsumption;
                     DEBUG_PRINT("Auto heater ");DEBUG_PRINT(heater->name);DEBUG_PRINTLN(" turned ON by user.");
                 } else {
@@ -945,7 +955,7 @@ void processHeaters() {
 uint16_t calculateHeatersConsumption(uint8_t phase) {
     uint16_t consumption = 0;
     for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-        if (heaterItems[i].phase == phase + 1 && heaterItems[i].isEnabled && heaterItems[i].actualState == true) {
+        if (heaterItems[i].phase == phase + 1 && heaterItems[i].isEnabled && heaterItems[i].getActualState() == true) {
             consumption += heaterItems[i].powerConsumption;
         }
     }

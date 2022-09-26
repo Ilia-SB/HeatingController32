@@ -13,6 +13,7 @@
 #define SENSOR_ADDR_LEN	8
 #define SENSOR_ADDR_UNCONFIGURED {0,0,0,0,0,0,0,0};
 
+typedef void (*OutputCB)(uint8_t, bool);
 
 class HeaterItem
 {
@@ -34,13 +35,18 @@ public:
 	boolean wantsOn = false;
 	byte priority = 100;
 	boolean isConnected = false;
-	boolean actualState = false;
+	
 protected:
 private:
+	boolean actualState = false;
+
 	float temperature = 0;
 	float targetTemperature = 0;
 	float delta = 0;
 	float temperatureAdjust = 0;
+	float hysteresis = 0;
+
+	OutputCB setPortCallback;
 
 	//functions
 public:
@@ -62,6 +68,8 @@ public:
 	void getIsAutoCStr(char* val);
 	bool setIsOn(const char* val);
 	void getIsOnCStr(char* val);
+	bool setActualState(bool);
+	bool getActualState(void);
 	bool setPriority(const char* val);
 	void getPriorityCStr(char* val);
 	bool setTargetTemperature(const char* val);
@@ -76,11 +84,15 @@ public:
 	void getConsumptionCStr(char* val);
 	bool setIsEnaled(const char* val);
 	void getIsEnabledCStr(char* val);
+	void setOutputCB(OutputCB);
+	bool setHysteresis(float);
+	float getHysteresis(void);
 
 	static void sortHeaters(HeaterItem **array, int size);
 protected:
 private:
 	HeaterItem(const HeaterItem& c);
+	void processTemperature(void);
 }; //HeaterItem
 
 #endif

@@ -33,7 +33,7 @@ bool HeaterItem::operator>(const HeaterItem& c) {
 
 void HeaterItem::setTemperature(float temp) {
 	temperature = temp;
-	delta = targetTemperature - getTemperature();
+	processTemperature();
 }
 
 float HeaterItem::getTemperature() {
@@ -54,7 +54,7 @@ float HeaterItem::getTemperature() {
 
 void HeaterItem::setTargetTemperature(float temp) {
 	targetTemperature = temp;
-	delta = targetTemperature - getTemperature();
+	processTemperature();
 }
 
 float HeaterItem::getTargetTemperature() {
@@ -63,7 +63,7 @@ float HeaterItem::getTargetTemperature() {
 
 void HeaterItem::setTemperatureAdjust(float temp) {
 	temperatureAdjust = temp;
-	delta = targetTemperature - getTemperature();
+	processTemperature();
 }
 
 float HeaterItem::getTemperatureAdjust() {
@@ -84,7 +84,6 @@ void HeaterItem::getTemperatureAdjustBytes(byte* array) {
 float HeaterItem::getDelta() {
 	return delta;
 }
-
 
 void HeaterItem::getAddressString(String& string, const char* format) {
 	char buffer[32];
@@ -235,5 +234,40 @@ void HeaterItem::sortHeaters(HeaterItem **array, int size) {
 				swapped = true;
 			}
 		}	
+	}
+}
+
+void HeaterItem::setOutputCB(OutputCB callback) {
+	setPortCallback = callback;
+}
+
+bool HeaterItem::setActualState(bool state) {
+	actualState = state;
+	setPortCallback(port, actualState);
+	return true;
+}
+
+bool HeaterItem::getActualState() {
+	return actualState;
+}
+
+bool HeaterItem::setHysteresis(float h) {
+	hysteresis = h;
+	processTemperature();
+	return true;
+}
+
+float HeaterItem::getHysteresis() {
+	return hysteresis;
+}
+
+void HeaterItem::processTemperature() {
+	delta = targetTemperature - getTemperature();
+	if (isAuto) {
+		if (delta > 0) {
+			wantsOn = true;
+		} else if (delta < -hysteresis) {
+			wantsOn = false;
+		}
 	}
 }
