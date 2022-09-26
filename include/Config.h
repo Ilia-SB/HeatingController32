@@ -3,11 +3,12 @@
 
 #include <Arduino.h>
 
+#define SETTINGS_VERSION	1
+
 #ifdef DEBUG
 	#undef DEBUG
 #endif // !DEBUG
 #define DEBUG
-#define MQTT_DEBUG
 
 //Pins
 #define ETHERNET_LED	14

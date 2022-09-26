@@ -606,6 +606,7 @@ void setDefaultSettings(Settings& settings) {
         settings.consumptionLimit[i] = CONSUMPTION_LIMITS[i];
         settings.hysteresis = DEFAULT_HYSTERESIS;
     }
+    saveSettings(settings);
 }
 
 void setDefaults(HeaterItem& heaterItem) {
@@ -644,6 +645,7 @@ void saveSettings(Settings& settings) {
     const char fileName[] = "/settings";
     File file = SPIFFS.open(fileName, FILE_WRITE, true);
     StaticJsonDocument<JSON_DOCUMENT_SIZE_SETTINGS> doc;
+    doc["settingsVersion"] = SETTINGS_VERSION;
     doc["hysteresis"] = settings.hysteresis;
     //JsonArray phases = doc.createNestedArray("phases");
     JsonArray consumptionLimit = doc.createNestedArray("consumptionLimit");
@@ -694,12 +696,30 @@ void loadSettings(Settings& settings) {
         StaticJsonDocument<JSON_DOCUMENT_SIZE_SETTINGS> doc;
         deserializeJson(doc, file);
 
+        if (!doc.containsKey("settingsVersion") || doc["settingsVersion"] != SETTINGS_VERSION) {
+            DEBUG_PRINTLN("Settings version mismatch.");
+            deleteSettings();
+        }
+
         settings.hysteresis = doc["hysteresis"].as<float>();
         //JsonArray phases = doc["phases"];
         JsonArray consumptionLimit = doc["consumptionLimit"];
         for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
             //settings.phases[i] = phases.getElement(i).as<uint8_t>();
             settings.consumptionLimit[i] = consumptionLimit.getElement(i).as<uint16_t>();
+        }
+    }
+}
+
+void deleteSettings() {
+    DEBUG_PRINTLN("Deleting global settings.");
+    SPIFFS.remove("/settings");
+    for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+        String fileName = "/item";
+        fileName += String(i);
+        if (SPIFFS.exists(fileName)) {
+            DEBUG_PRINT("Deleting settings for ");DEBUG_PRINT(fileName);DEBUG_PRINTLN(".");
+            SPIFFS.remove(fileName);
         }
     }
 }
@@ -843,7 +863,6 @@ bool checkSensorConnected(HeaterItem& heater) {
 }
 
 void processHeaters() {
-    //TODO: actually turn relays on and off
     for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
         int16_t availablePower = 0;
         if (millis() - consumptionDataReceived[phase] < 1000) { //if data from the energy meter is not older than 1 sec.
