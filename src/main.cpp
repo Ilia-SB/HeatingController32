@@ -301,7 +301,6 @@ void processCommand(char* item, char* command, char* payload) {
         }
     }
     if (strcasecmp(command, SET_SENSOR) == 0) {
-        DEBUG_PRINT("setSensor: "); DEBUG_PRINTLN(payload);
         if (heater->setSensorAddress(payload)) {
             sanityCheckHeater(*heater);
             heater->getSensorAddressCStr(val);
