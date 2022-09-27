@@ -1,6 +1,6 @@
 // HeaterItem.h
 //TODO: Callback for state changes
-//TODO: Callcack for physical output
+
 
 #ifndef _HEATERITEM_h
 #define _HEATERITEM_h
@@ -9,7 +9,6 @@
 #include "MqttInterface.h"
 #include "Utils.h"
 
-//#define ADDR_LEN 7 //6 chars + /n
 #define SENSOR_ADDR_LEN	8
 #define SENSOR_ADDR_UNCONFIGURED {0,0,0,0,0,0,0,0};
 
@@ -54,12 +53,12 @@ public:
 	~HeaterItem();
 	bool operator>(const HeaterItem& c);
 	//HeaterItem& operator=( const HeaterItem &c );
-	void setName(const String& s) {name = s;}
-	String getName(void) {return name;}
-	void setSubtopic(const String& s) {subtopic = s;}
-	String getSubtopic(void) {return subtopic;}
-	void setAddress(const uint8_t a) {address = a;}
-	uint8_t getAddress(void) {return address;}
+	void setName(const String& s);
+	String getName(void);
+	void setSubtopic(const String& s);
+	String getSubtopic(void);
+	void setAddress(const uint8_t a);
+	uint8_t getAddress(void);
 	void setTemperature(const float temp);
 	float getTemperature();
 	//void getTemperatureBytes(byte* array);
@@ -70,49 +69,49 @@ public:
 	void getTemperatureAdjustBytes(byte* array);
 	float getDelta();
 	void getAddressString(String& string, const char* format);
-	void setIsAuto(const bool);
+	void setIsAuto(const bool b);
 	bool setIsAuto(const char* val);
-	bool getIsAuto(void) {return isAuto;}
+	bool getIsAuto(void);
 	void getIsAutoCStr(char* val);
-	void setIsOn(const bool b) {isOn = b;}
+	void setIsOn(const bool b);
 	bool setIsOn(const char* val);
-	bool getIsOn(void) {return isOn;}
+	bool getIsOn(void);
 	void getIsOnCStr(char* val);
-	void setWantsOn(const bool b) {wantsOn = b;}
-	bool getWantsOn(void) {return wantsOn;}
+	void setWantsOn(const bool b);
+	bool getWantsOn(void);
 	bool setActualState(const bool);
 	bool getActualState(void);
-	void setPriority(const uint8_t p) {priority = p;}
+	void setPriority(const uint8_t p);
 	bool setPriority(const char* val);
-	byte getPriority(void) {return priority;}
+	byte getPriority(void);
 	void getPriorityCStr(char* val);
 	bool setTargetTemperature(const char* val);
 	void getTargetTemperatureCStr(char* val);
-	void setSensorAddress(const byte* p) {memcpy(sensorAddress, p, SENSOR_ADDR_LEN);}
+	void setSensorAddress(const byte* p);
 	bool setSensorAddress(const char* val);
-	byte* getSensorAddress(void) {return sensorAddress;}
+	byte* getSensorAddress(void);
 	void getSensorAddressCStr(char* val);
-	void setPort(const uint8_t p) {port = p;}
+	void setPort(const uint8_t p);
 	bool setPort(const char* val);
-	byte getPort(void) {return port;}
+	byte getPort(void);
 	void getPortCStr(char* val);
-	void setPhase(const uint8_t p) {phase = p;}
-	uint8_t getPhase(void) {return phase;}
+	void setPhase(const uint8_t p);
+	uint8_t getPhase(void);
 	bool setTemperatureAdjust(const char* val);
 	void getTemperatureAdjustCStr(char* val);
-	void setPowerConsumption(const uint16_t p) {powerConsumption = p;}
+	void setPowerConsumption(const uint16_t p);
 	bool setPowerConsumption(const char* val);
-	uint16_t getPowerConsumption(void) {return powerConsumption;}
+	uint16_t getPowerConsumption(void);
 	void getPowerConsumptionCStr(char* val);
-	void setIsEnabled(const bool b) {isEnabled = b;}
+	void setIsEnabled(const bool b);
 	bool setIsEnaled(const char* val);
-	bool getIsEnabled(void) {return isEnabled;}
+	bool getIsEnabled(void);
 	void getIsEnabledCStr(char* val);
 	void setOutputCB(OutputCB);
 	bool setHysteresis(const float);
 	float getHysteresis(void);
-	void setIsConnected(const bool b) {isConnected = b;}
-	bool getIsConnected(void) {return isConnected;}
+	void setIsConnected(const bool b);
+	bool getIsConnected(void);
 
 	static void sortHeaters(HeaterItem **array, int size);
 protected:

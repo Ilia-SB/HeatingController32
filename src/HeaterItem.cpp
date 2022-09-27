@@ -114,6 +114,15 @@ void HeaterItem::getIsAutoCStr(char* val) {
 		strcpy(val, OFF);
 }
 
+void HeaterItem::setIsOn(const bool b) {
+	isOn = b;
+	if (!isAuto) { //for manual heater
+		setWantsOn(b); // wantsOn is same as isOn
+	} else if (!b) { //for auto heaters OFF
+		setWantsOn(b); // means wantsOn = false
+	}
+}
+
 bool HeaterItem::setIsOn(const char* val) {
 	if (isAuto)
 		return false;
@@ -269,6 +278,102 @@ bool HeaterItem::setHysteresis(const float h) {
 
 float HeaterItem::getHysteresis() {
 	return hysteresis;
+}
+
+void HeaterItem::setName(const String& s) {
+	name = s;
+}
+
+String HeaterItem::getName() {
+	return name;
+}
+
+void HeaterItem::setSubtopic(const String& s) {
+	subtopic = s;
+}
+
+String HeaterItem::getSubtopic() {
+	return subtopic;
+}
+
+void HeaterItem::setAddress(const uint8_t a) {
+	address = a;
+}
+
+uint8_t HeaterItem::getAddress() {
+	return address;
+}
+
+bool HeaterItem::getIsAuto() {
+	return isAuto;
+}
+
+bool HeaterItem::getIsOn() {
+	return isOn;
+}
+
+void HeaterItem::setWantsOn(const bool b) {
+	wantsOn = b;
+}
+
+bool HeaterItem::getWantsOn() {
+	return wantsOn;
+}
+
+void HeaterItem::setPriority(const uint8_t p) {
+	priority = p;
+}
+
+byte HeaterItem::getPriority() {
+	return priority;
+}
+
+void HeaterItem::setSensorAddress(const byte* p) {
+	memcpy(sensorAddress, p, SENSOR_ADDR_LEN);
+}
+
+byte* HeaterItem::getSensorAddress() {
+	return sensorAddress;
+}
+
+void HeaterItem::setPort(const uint8_t p) {
+	port = p;
+}
+
+byte HeaterItem::getPort() {
+	return port;
+}
+
+void HeaterItem::setPhase(const uint8_t p) {
+	phase = p;
+}
+
+uint8_t HeaterItem::getPhase() {
+	return phase;
+}
+
+void HeaterItem::setPowerConsumption(const uint16_t p) {
+	powerConsumption = p;
+}
+
+uint16_t HeaterItem::getPowerConsumption() {
+	return powerConsumption;
+}
+
+void HeaterItem::setIsEnabled(const bool b) {
+	isEnabled = b;
+}
+
+bool HeaterItem::getIsEnabled() {
+	return isEnabled;
+}
+
+void HeaterItem::setIsConnected(const bool b) {
+	isConnected = b;
+}
+
+bool HeaterItem::getIsConnected() {
+	return isConnected;
 }
 
 void HeaterItem::processTemperature() {
