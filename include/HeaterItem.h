@@ -20,6 +20,10 @@ class HeaterItem
 	//variables
 public:
 	static constexpr uint8_t UNCONFIGURED = 255;
+	enum DALLAS_SENSOR {
+		SENSOR_NOT_CONNECTED	= -127,
+		SENSOR_READ_ERROR		= 85
+	};
 
 protected:
 

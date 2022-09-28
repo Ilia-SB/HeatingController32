@@ -601,8 +601,10 @@ void readTemperatures() {
     DEBUG_PRINTLN("Reading temperatures...");
     for (uint8_t i = 0; i < NUMBER_OF_HEATERS; i++) {
         float _temperature = sensors.getTempC(heaterItems[i].getSensorAddress());
+        if ((int)_temperature == HeaterItem::SENSOR_NOT_CONNECTED || (int)_temperature == HeaterItem::SENSOR_READ_ERROR) {
+            return;
+        }
         heaterItems[i].setTemperature(_temperature);
-        
     }
     flagReadTemperatures = false;
     reportTemperatures();
