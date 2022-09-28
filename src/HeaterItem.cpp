@@ -92,6 +92,10 @@ void HeaterItem::getAddressString(String& string, const char* format) {
 }
 
 void HeaterItem::setIsAuto(const bool b) {
+	if (isAuto == true && b == false) { //switching from auto to manual mode
+		setIsOn(false);
+		setWantsOn(false);
+	}
 	isAuto = b;
 	processTemperature();
 }
@@ -388,8 +392,8 @@ bool HeaterItem::getIsConnected() {
 }
 
 void HeaterItem::processTemperature() {
-	delta = targetTemperature - getTemperature();
 	if (isAuto) {
+		delta = targetTemperature - getTemperature();
 		if (delta > 0) {
 			wantsOn = true;
 		} else if (delta < -hysteresis) {
