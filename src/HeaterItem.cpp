@@ -197,14 +197,12 @@ void HeaterItem::getPortCStr(char* val) {
 
 bool HeaterItem::setTemperatureAdjust(const char* val) {
 	float _temperatureAdjust = strtof(val, nullptr);
-	if (_temperatureAdjust <= 0.0f)
-		return false;
 	setTemperatureAdjust(_temperatureAdjust);
 	return true;
 }
 
 void HeaterItem::getTemperatureAdjustCStr(char* val) {
-	dtostrf((double)temperatureAdjust, 5, 1, val);
+	dtostrf(temperatureAdjust, 5, 1, val);
 }
 
 bool HeaterItem::setPowerConsumption(const char* val) {
@@ -346,6 +344,19 @@ byte HeaterItem::getPort() {
 
 void HeaterItem::setPhase(const uint8_t p) {
 	phase = p;
+}
+
+bool HeaterItem::setPhase(const char* val) {
+	byte _phase = atoi(val);
+	if (_phase < 0 || _phase > NUMBER_OF_PHASES - 1)
+		return false;
+
+	setPhase(_phase);
+	return true;
+}
+
+void HeaterItem::getPhaseCStr(char* val) {
+	itoa(phase, val, 10);
 }
 
 uint8_t HeaterItem::getPhase() {

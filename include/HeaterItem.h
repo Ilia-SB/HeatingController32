@@ -8,6 +8,7 @@
 #include <Arduino.h>
 #include "MqttInterface.h"
 #include "Utils.h"
+#include "Config.h"
 
 #define SENSOR_ADDR_LEN	8
 #define SENSOR_ADDR_UNCONFIGURED {0,0,0,0,0,0,0,0};
@@ -96,7 +97,9 @@ public:
 	byte getPort(void);
 	void getPortCStr(char* val);
 	void setPhase(const uint8_t p);
+	bool setPhase(const char* val);
 	uint8_t getPhase(void);
+	void getPhaseCStr(char* val);
 	bool setTemperatureAdjust(const char* val);
 	void getTemperatureAdjustCStr(char* val);
 	void setPowerConsumption(const uint16_t p);

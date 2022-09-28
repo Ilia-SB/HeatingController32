@@ -30,7 +30,7 @@ AsyncWebServer server(80);
 
 PubSubClient mqttClient(ethClient);
 
-OneWire oneWire(SENSOR);
+OneWire oneWire(SENSOR_PIN);
 DallasTemperature sensors(&oneWire);
 
 uint16_t outputs = 0;
@@ -120,6 +120,7 @@ void loadState(HeaterItem&);
 void loadState(HeaterItem&, uint8_t);
 void processSettingsForm(AsyncWebServerRequest*);
 void reportHeatersState(void);
+void reportHeaterState(HeaterItem&);
 void reportTemperatures(void);
 void getConsumptionData(const char*);
 void initHeaters(void);
@@ -224,10 +225,10 @@ void processCommand(char* item, char* command, char* payload) {
         strcpy(statusTopic, STATUS_TOPIC);
         strcat(statusTopic, "/settings/");
         
-        if (strcasecmp(command, SET_HYSTERESIS) == 0) {
+        if (strcasecmp(command, HYSTERESIS) == 0) {
             if (settings.setHysteresis(payload)) {
                 settings.getHysteresisCStr(val);
-                strcat(statusTopic, SET_HYSTERESIS);
+                strcat(statusTopic, HYSTERESIS);
                 mqttClient.publish(statusTopic, val, false);
                 saveSettings(settings);
             }
@@ -240,10 +241,10 @@ void processCommand(char* item, char* command, char* payload) {
             strcpy(_phase, underscore + 1);
             uint8_t phase = (uint8_t)atoi(_phase);
             
-            if (strcasecmp(_command, SET_CONSUMPTION_LIMIT) == 0) {
+            if (strcasecmp(_command, CONSUMPTION_LIMIT) == 0) {
                 if (settings.setConsumptionLimit(payload, phase)) {
                     settings.getConsumptionLimitCStr(val, phase);
-                    strcat(statusTopic, SET_CONSUMPTION_LIMIT);
+                    strcat(statusTopic, CONSUMPTION_LIMIT);
                     mqttClient.publish(statusTopic, val, false);
                     saveSettings(settings);
                 }
@@ -274,67 +275,75 @@ void processCommand(char* item, char* command, char* payload) {
 
     HeaterItem* heater = &heaterItems[heaterNum];
 
-    if (strcasecmp(command, SET_IS_AUTO) == 0) {
+    if (strcasecmp(command, IS_AUTO) == 0) {
         if (heater->setIsAuto(payload)) {
             sanityCheckHeater(*heater);
             heater->getIsAutoCStr(val);
-            strcat(statusTopic, SET_IS_AUTO);
+            strcat(statusTopic, IS_AUTO);
         }
     }
-    if (strcasecmp(command, SET_IS_ON) == 0) {
+    if (strcasecmp(command, IS_ON) == 0) {
         if (heater->setIsOn(payload)) {
             heater->getIsOnCStr(val);
-            strcat(statusTopic, SET_IS_ON);
+            strcat(statusTopic, IS_ON);
         }
     }
-    if (strcasecmp(command, SET_PRIORITY) == 0) {
+    if (strcasecmp(command, PRIORITY) == 0) {
         if (heater->setPriority(payload)) {
             sanityCheckHeater(*heater);
             heater->getPriorityCStr(val);
-            strcat(statusTopic, SET_PRIORITY);
+            strcat(statusTopic, PRIORITY);
         }
     }
-    if (strcasecmp(command, SET_TARGET_TEMPERATURE) == 0) {
+    if (strcasecmp(command, TARGET_TEMPERATURE) == 0) {
         if (heater->setTargetTemperature(payload)) {
             heater->getTargetTemperatureCStr(val);
-            strcat(statusTopic, SET_TARGET_TEMPERATURE);
+            strcat(statusTopic, TARGET_TEMPERATURE);
         }
     }
-    if (strcasecmp(command, SET_SENSOR) == 0) {
+    if (strcasecmp(command, SENSOR) == 0) {
         if (heater->setSensorAddress(payload)) {
             sanityCheckHeater(*heater);
             heater->getSensorAddressCStr(val);
-            strcat(statusTopic, SET_SENSOR);
+            strcat(statusTopic, SENSOR);
         }
     }
-    if (strcasecmp(command, SET_PORT) == 0) {
+    if (strcasecmp(command, PORT) == 0) {
         if (heater->setPort(payload)) {
             sanityCheckHeater(*heater);
             heater->getPortCStr(val);
-            strcat(statusTopic, SET_PORT);
+            strcat(statusTopic, PORT);
         }
     }
-    if (strcasecmp(command, SET_TEMPERATURE_ADJUST) == 0) {
+    if (strcasecmp(command, PHASE) == 0) {
+        if (heater->setPhase(payload)) {
+            sanityCheckHeater(*heater);
+            heater->getPhaseCStr(val);
+            strcat(statusTopic, PHASE);
+        }
+    }
+    if (strcasecmp(command, TEMPERATURE_ADJUST) == 0) {
         if (heater->setTemperatureAdjust(payload)) {
             heater->getTemperatureAdjustCStr(val);
-            strcat(statusTopic, SET_TEMPERATURE_ADJUST);
+            strcat(statusTopic, TEMPERATURE_ADJUST);
         }
     }
-    if (strcasecmp(command, SET_CONSUMPTION) == 0) {
+    if (strcasecmp(command, CONSUMPTION) == 0) {
         if (heater->setPowerConsumption(payload)) {
             heater->getPowerConsumptionCStr(val);
-            strcat(statusTopic, SET_CONSUMPTION);
+            strcat(statusTopic, CONSUMPTION);
         }
     }
-    if (strcasecmp(command, SET_IS_ENABLED) == 0) {
+    if (strcasecmp(command, IS_ENABLED) == 0) {
         if (heater->setIsEnaled(payload)) {
             sanityCheckHeater(*heater);
             heater->getIsEnabledCStr(val);
-            strcat(statusTopic, SET_IS_ENABLED);
+            strcat(statusTopic, IS_ENABLED);
         }
     }
 
-    mqttClient.publish(statusTopic, val, false);
+    //mqttClient.publish(statusTopic, val, false);
+    reportHeaterState(*heater);
     saveState(*heater);
     newDataAvailable = true;
 }
@@ -586,10 +595,6 @@ void readTemperatures() {
     newDataAvailable = true;
 }
 
-void reportTemperatures() {
-    //TODO: report to mqtt
-}
-
 void setDefaultSettings(Settings& settings) {
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         settings.consumptionLimit[i] = CONSUMPTION_LIMITS[i];
@@ -739,7 +744,6 @@ void loadState(HeaterItem& heaterItem) {
         heaterItem.setIsOn(doc["isOn"].as<bool>());
         heaterItem.setPriority(doc["priority"].as<uint8_t>());
         heaterItem.setIsConnected(doc["isConnected"].as<bool>());
-        DEBUG_PRINTLN(doc["targetTemperature"].as<float>());
         heaterItem.setTargetTemperature(doc["targetTemperature"].as<float>());
         heaterItem.setTemperatureAdjust(doc["temperatureAdjust"].as<float>());
     }
@@ -790,14 +794,40 @@ void processSettingsForm(AsyncWebServerRequest* request) {
     newDataAvailable = true;
 }
 
-void reportHeatersState() {
+void reportTemperatures() {
     for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+        if(heaterItems[i].getIsConnected() == true) {
+            HeaterItem* heater = &heaterItems[i];
+            StaticJsonDocument<128> doc;
+            doc["temperature"] = heater->getTemperature();
+            String mqttPayload;
+            serializeJson(doc, mqttPayload);
+
+            String mqttTopic;
+            mqttTopic += STATUS_TOPIC;
+            mqttTopic += "/";
+            mqttTopic += heater->getSubtopic();
+            mqttTopic += "/STATE";
+
+            mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), false);
+        }
+    }
+}
+
+void reportHeatersState() {
+    DEBUG_PRINTLN("Reporting heaters state...");
+    for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+        reportHeaterState(heaterItems[i]);
+    }
+}
+
+void reportHeaterState(HeaterItem& heater) {
         StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
-        itemToJson(heaterItems[i], doc);
+        itemToJson(heater, doc);
         String mqttTopic;
         mqttTopic += STATUS_TOPIC;
         mqttTopic += "/";
-        mqttTopic += heaterItems[i].getSubtopic();
+        mqttTopic += heater.getSubtopic();
         mqttTopic += "/STATE";
 
         String mqttPayload;
@@ -805,16 +835,15 @@ void reportHeatersState() {
 
         uint16_t maxPayloadSize = MQTT_MAX_PACKET_SIZE - MQTT_MAX_HEADER_SIZE - 2 - mqttTopic.length();
         if(mqttPayload.length() > maxPayloadSize) {
-            mqttClient.beginPublish(mqttTopic.c_str(), mqttPayload.length(), false);
+            mqttClient.beginPublish(mqttTopic.c_str(), mqttPayload.length(), true);
             for (uint16_t j=0; j<mqttPayload.length(); j++) {
                 mqttClient.write((uint8_t)(mqttPayload.c_str()[j]));
             }
             mqttClient.endPublish();
         }
         else {
-            mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), false);
+            mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), true);
         }
-    }
 }
 
 void initHeaters() {
@@ -981,7 +1010,7 @@ void setup()
     pinMode(ETHERNET_LED, OUTPUT);
     pinMode(MQTT_LED, OUTPUT);
     pinMode(ONEWIRE_LED, OUTPUT);
-    pinMode(SENSOR, OUTPUT);
+    pinMode(SENSOR_PIN, OUTPUT);
     pinMode(LS_DATA, OUTPUT);
     pinMode(LS_CLK, OUTPUT);
     pinMode(LS_STB, OUTPUT);

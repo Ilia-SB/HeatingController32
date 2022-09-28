@@ -50,7 +50,7 @@ static const char* ENERGY_METER_TOPIC = "tele/energy_meter";
 #define NUMBER_OF_PHASES  3
 static const uint16_t CONSUMPTION_LIMITS[NUMBER_OF_PHASES] = {5000, 5000, 5000};
 
-#define SENSOR 16 //Temperature sensors pin
+#define SENSOR_PIN 16 //Temperature sensors pin
 #define MAX_NUMBER_OF_SENSORS 16
 
 #define LS_DATA		15
