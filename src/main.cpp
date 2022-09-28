@@ -211,9 +211,7 @@ void getConsumptionData(const char* rawData) {
             consumptionDataReceived[phase] = millis();
             DEBUG_PRINTLN(currentConsumption[phase]);
             if (currentConsumption[phase] > settings.consumptionLimit[phase]) {
-                if (millis() - emergencyHandled > 1000) {
-                    flagEmergency = true;
-                }
+                flagEmergency = true;
             }
         }
     }
@@ -906,6 +904,9 @@ void processHeaters() {
         } else {
             DEBUG_PRINT("Using estimated power consumption. ");
             availablePower = settings.consumptionLimit[phase] - calculateHeatersConsumption(phase);
+            if (availablePower < 0) {
+                flagEmergency = true;
+            }
         }
 
         HeaterItem* manualHeaters[NUMBER_OF_HEATERS];
@@ -954,6 +955,10 @@ void processHeaters() {
         //emergency
         if (flagEmergency) {
             DEBUG_PRINTLN("Phase is in emergency state");
+            if (millis() - emergencyHandled < 1000) {
+                DEBUG_PRINTLN("   Emergency last handled less than 1000ms ago. Not taking actions.");
+                return;
+            }
             //TODO: sort by power consumption
             //auto heaters
             for (uint8_t i=autoHeatersNum; (availablePower < 0) && (i-- > 0);) {
@@ -975,6 +980,7 @@ void processHeaters() {
             }
             emergencyHandled = millis();
             flagEmergency = false;
+            DEBUG_PRINT("Emergency handled. Available power: ");DEBUG_PRINTLN(availablePower);
             return;
         }
 
