@@ -864,6 +864,7 @@ void reportHeaterState(HeaterItem& heater) {
 
 void initHeaters() {
 for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+        heaterItems[i].setHysteresis(settings.hysteresis);
         heaterItems[i].setOutputCB(heaterItemPortCallback);
         loadState(heaterItems[i], i);
         heaterItems[i].setActualState(false);
