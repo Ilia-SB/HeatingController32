@@ -11,11 +11,11 @@
 
 
 #if defined(DEBUG)
-    #define DEBUG_PRINT(x)			Serial.print (x)
-    #define DEBUG_PRINTDEC(x)		Serial.print (x, DEC)
-    #define DEBUG_PRINTHEX(x)		Serial.print (x, HEX)
-    #define DEBUG_PRINTLN(x)		Serial.println (x)
-    #define DEBUG_PRINT_ARRAY(x, len)   for(uint8_t i=0; i<len; i++) {Serial.print(x[i]);Serial.print(" ");}
+    #define DEBUG_PRINT(x)			Serial.print (x); tcpClient.print(x);
+    #define DEBUG_PRINTDEC(x)		Serial.print (x, DEC); tcpClient.print(x, DEC);
+    #define DEBUG_PRINTHEX(x)		Serial.print (x, HEX); tcpClient.print(x, HEX);
+    #define DEBUG_PRINTLN(x)		Serial.println (x); tcpClient.println(x);
+    #define DEBUG_PRINT_ARRAY(x, len)   for(uint8_t i=0; i<len; i++) {Serial.print(x[i]);Serial.print(" "); tcpClient.print(x[i]); tcpClient.print(" ");}
     #define DEBUG_MEMORY()          Serial.println();Serial.print(F("!!! Free memory: "));Serial.print(freeMemory());Serial.println(F(" !!!"));Serial.println();
 #else
     #define DEBUG_PRINT(x)

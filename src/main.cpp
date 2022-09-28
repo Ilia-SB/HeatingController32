@@ -24,6 +24,7 @@
 #include <ArduinoJson.h>
 
 WiFiClient ethClient;
+WiFiClient tcpClient;
 static bool ethConnected = false;
 
 AsyncWebServer server(80);
@@ -107,6 +108,7 @@ void setPorts(boolean[]);
 void processCommand(char*, char*, char*);
 void mqttCallback(char*, byte*, const unsigned int);
 bool mqttConnect(void);
+bool tcpConnect(void);
 void WiFiEvent(WiFiEvent_t);
 String webServerPlaceholderProcessor(const String&);
 void oneWireBlinkDetectedSensors(uint8_t);
@@ -392,6 +394,20 @@ void mqttCallback(char* topic, byte* payload, const unsigned int len) {
     item[firstSlash - secondSlash - 1] = '\0';
 
     processCommand(item, command, payloadCopy);
+}
+
+bool tcpConnect() {
+    if (!ethConnected) {
+        return false;
+    }
+
+    if (tcpClient.connect(TCP_URL, TCP_PORT)) {
+        Serial.println("TCP client connected.");
+        return true;
+    } else {
+        Serial.println("TCP client connect failed.");
+        return false;
+    }
 }
 
 bool mqttConnect() {
@@ -918,17 +934,20 @@ void processHeaters() {
             if (heater->getActualState() == true && heater->getWantsOn() == false) {
                 heater->setActualState(false);
                 availablePower += heater->getPowerConsumption();
-                DEBUG_PRINT("***Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF by user.");
+                DEBUG_PRINT("    ***Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF by user.");
             }
         }
         //auto heaters
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
-            DEBUG_PRINT("   ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" temp: ");DEBUG_PRINT(heater->getTemperature());DEBUG_PRINT(" targetTemp: ");DEBUG_PRINTLN(heater->getTargetTemperature());
+            DEBUG_PRINT("   ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" temp: ");DEBUG_PRINT(heater->getTemperature());DEBUG_PRINT(" targetTemp: ");DEBUG_PRINT(heater->getTargetTemperature());
+            DEBUG_PRINT(" delta: ");DEBUG_PRINT(heater->getDelta());DEBUG_PRINT(" hyst: ");DEBUG_PRINT(heater->getHysteresis());DEBUG_PRINT(" state: ");DEBUG_PRINT(heater->getActualState()?"ON":"OFF");
             if (heater->getActualState() == true && heater->getWantsOn() == false) {
                 heater->setActualState(false);
                 availablePower += heater->getPowerConsumption();
-                DEBUG_PRINT("***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF. Target temp reached.");
+                DEBUG_PRINT("    ***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF. Target temp reached.");
+            } else {
+                DEBUG_PRINT("    ***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" Nothing to do.");
             }
         }
         //emergency
@@ -941,7 +960,7 @@ void processHeaters() {
                 if (heater->getActualState() == true) {
                     heater->setActualState(false);
                     availablePower += heater->getPowerConsumption();
-                    DEBUG_PRINT("***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF. Not enough power.");
+                    DEBUG_PRINT("    ***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF. Not enough power.");
                 }
             }
             //manual heaters
@@ -950,7 +969,7 @@ void processHeaters() {
                 if (heater->getActualState() == true) {
                     heater->setActualState(false);
                     availablePower += heater->getPowerConsumption();
-                    DEBUG_PRINT("***Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF. Not enough power.");
+                    DEBUG_PRINT("    ***Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF. Not enough power.");
                 }
             }
             emergencyHandled = millis();
@@ -972,24 +991,27 @@ void processHeaters() {
                 if (heater->getPowerConsumption() < availablePower) {
                     heater->setActualState(true);
                     availablePower -= heater->getPowerConsumption();
-                    DEBUG_PRINT("***Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned ON by user.");
+                    DEBUG_PRINT("    ***Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned ON by user.");
                 } else {
-                    DEBUG_PRINT("***Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" failed to turn ON. Not enough power.");
+                    DEBUG_PRINT("    ***Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" failed to turn ON. Not enough power.");
                 }
             }
         }
         //auto heaters
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
-            DEBUG_PRINT("   ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" temp: ");DEBUG_PRINT(heater->getTemperature());DEBUG_PRINT(" targetTemp: ");DEBUG_PRINTLN(heater->getTargetTemperature());
+            DEBUG_PRINT("   ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" temp: ");DEBUG_PRINT(heater->getTemperature());DEBUG_PRINT(" targetTemp: ");DEBUG_PRINT(heater->getTargetTemperature());
+            DEBUG_PRINT(" delta: ");DEBUG_PRINT(heater->getDelta());DEBUG_PRINT(" hyst: ");DEBUG_PRINT(heater->getHysteresis());DEBUG_PRINT(" state: ");DEBUG_PRINT(heater->getActualState()?"ON":"OFF");
             if (heater->getWantsOn() == true && heater->getActualState() == false) {
                 if (heater->getPowerConsumption() < availablePower) {
                     heater->setActualState(true);
                     availablePower -= heater->getPowerConsumption();
-                    DEBUG_PRINT("***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned ON.");
+                    DEBUG_PRINT("    ***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned ON.");
                 } else {
-                    DEBUG_PRINT("***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" failed to turn ON. Not enough power.");
+                    DEBUG_PRINT("    ***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" failed to turn ON. Not enough power.");
                 }
+            } else {
+                DEBUG_PRINT("    ***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" Nothing to do.");
             }
         }
     }
@@ -1034,6 +1056,14 @@ void setup()
     ISR_Timer.disableAll();
 
     Serial.begin(115200);
+
+    //start ethernet
+    ISR_Timer.enable(TIMER_NUM_ETHERNET_LED_BLINK);
+    WiFi.onEvent(WiFiEvent);
+    ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
+
+    tcpConnect();
+
     DEBUG_PRINTLN("HeatingController32 V1.0 starting...");
     DEBUG_PRINTLN("Debug mode");
     DEBUG_PRINTLN();
@@ -1075,10 +1105,6 @@ void setup()
     //init heaterItems
     initHeaters();
  
-    ISR_Timer.enable(TIMER_NUM_ETHERNET_LED_BLINK);
-    WiFi.onEvent(WiFiEvent);
-    ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
-
     server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
         String html;
         File root = SPIFFS.open("/");
@@ -1129,6 +1155,12 @@ void loop()
     else {
         mqttConnect();
     }
+
+/*
+    if (!tcpClient.connected()) {
+        tcpConnect();
+    }
+*/
 
     if (flagEmergency) {
         processHeaters();

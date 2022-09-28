@@ -389,10 +389,11 @@ bool HeaterItem::getIsConnected() {
 
 void HeaterItem::processTemperature() {
 	delta = targetTemperature - getTemperature();
+	int16_t d = targetTemperature * 10 - getTemperature() * 10;
 	if (isAuto) {
-		if (delta > 0) {
+		if (d > 0) {
 			wantsOn = true;
-		} else if (delta < -hysteresis) {
+		} else if (d < -hysteresis * 10) {
 			wantsOn = false;
 		}
 	}
