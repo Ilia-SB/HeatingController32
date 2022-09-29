@@ -965,10 +965,12 @@ void processHeaters() {
         //emergency
         if (flagEmergency) {
             DEBUG_PRINTLN("Phase is in emergency state");
+            /*
             if (millis() - emergencyHandled < 1000) {
                 DEBUG_PRINTLN("   Emergency last handled less than 1000ms ago. Not taking actions.");
                 return;
             }
+            */
             //auto heaters
             HeaterItem::sortHeatersByPowerConsumption(autoHeaters, autoHeatersNum);
             for (uint8_t i=autoHeatersNum; (availablePower < 0) && (i-- > 0);) {
