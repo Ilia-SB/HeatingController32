@@ -969,8 +969,8 @@ void processHeaters() {
                 DEBUG_PRINTLN("   Emergency last handled less than 1000ms ago. Not taking actions.");
                 return;
             }
-            //TODO: sort by power consumption
             //auto heaters
+            HeaterItem::sortHeatersByPowerConsumption(autoHeaters, autoHeatersNum);
             for (uint8_t i=autoHeatersNum; (availablePower < 0) && (i-- > 0);) {
                 HeaterItem* heater = autoHeaters[i];
                 if (heater->getActualState() == true) {
@@ -980,6 +980,7 @@ void processHeaters() {
                 }
             }
             //manual heaters
+            HeaterItem::sortHeatersByPowerConsumption(manualHeaters, manualHeatersNum);
             for (uint8_t i=manualHeatersNum; (availablePower < 0) && (i-- > 0);) {
                 HeaterItem* heater = manualHeaters[i];
                 if (heater->getActualState() == true) {
