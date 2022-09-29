@@ -43,7 +43,7 @@ private:
 	byte priority = 100;
 	boolean isConnected = false;
 	boolean actualState = false;
-	uint16_t tempReadErrors = 0;
+	uint8_t tempReadErrors = 0;
 
 	float temperature = 0;
 	float targetTemperature = 0;
@@ -118,7 +118,8 @@ public:
 	void setIsConnected(const bool b);
 	bool getIsConnected(void);
 	void tempReadError(void);
-	uint16_t getTempReadErrors(void);
+	void setTempReadErrors(uint8_t);
+	uint8_t getTempReadErrors(void);
 
 	void setOutputCallBack(OutputCallBack);
 	void setNotificationCallBack(NotificationCallBack);

@@ -592,21 +592,22 @@ void readTemperatures() {
             } else {
                 DEBUG_PRINT("Error reading temperature for item ");DEBUG_PRINTLN(heaterItems[i].getName());
                 heaterItems[i].tempReadError();
-                if(heaterItems[i].getTempReadErrors() > MAX_TEMP_READ_ERRORS) {
+                if(heaterItems[i].getTempReadErrors() >= MAX_TEMP_READ_ERRORS) {
                     StaticJsonDocument<JSON_DOCUMENT_SIZE_SMALL> doc;
                     doc[TEMPERATURE_READ_ERRORS] = heaterItems[i].getTempReadErrors();
                     String mqttPayload;
                     serializeJson(doc, mqttPayload);
 
                     String mqttTopic;
-                    mqttTopic += STATUS_TOPIC;
+                    mqttTopic += ERROR_TOPIC;
                     mqttTopic += "/";
                     mqttTopic += heaterItems[i].getSubtopic();
                     mqttTopic += "/STATE";
 
                     mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), false);
-                DEBUG_PRINT("Heater ");DEBUG_PRINT(heaterItems[i].getName());DEBUG_PRINT(": number of temperature read errors: ");DEBUG_PRINTLN(heaterItems[i].getTempReadErrors());
-            }
+                    DEBUG_PRINT("Heater ");DEBUG_PRINT(heaterItems[i].getName());DEBUG_PRINT(": number of temperature read errors since last report: ");DEBUG_PRINTLN(heaterItems[i].getTempReadErrors());
+                    heaterItems[i].setTempReadErrors(0); //reset counter
+                }
             }
         }
 
@@ -909,7 +910,8 @@ void processHeaters() {
     for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
         newDataAvailable = false;
         int16_t availablePower = 0;
-        if (millis() - consumptionDataReceived[phase] < 1000) { //if data from the energy meter is not older than 1 sec.
+        if (millis() - consumptionDataReceived[phase] < 2000) { //if data from the energy meter is not older than 2 sec.
+            DEBUG_PRINT("Using calculated power consumption. ");
             availablePower = settings.consumptionLimit[phase] - currentConsumption[phase];
         } else {
             DEBUG_PRINT("Using estimated power consumption. ");

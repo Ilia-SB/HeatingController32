@@ -227,7 +227,7 @@ void HeaterItem::sortHeaters(HeaterItem **array, int size) {
 	}
 }
 
-static void sortHeatersByPowerConsumption(HeaterItem **array, int size) {
+void HeaterItem::sortHeatersByPowerConsumption(HeaterItem **array, int size) {
 	int jump = size;
 	bool swapped = true;
 	HeaterItem *tmp;
@@ -391,8 +391,12 @@ void HeaterItem::tempReadError() {
 	tempReadErrors++;
 }
 
-uint16_t HeaterItem::getTempReadErrors(void) {
+uint8_t HeaterItem::getTempReadErrors(void) {
 	return tempReadErrors;
+}
+
+void HeaterItem::setTempReadErrors(uint8_t errors) {
+	tempReadErrors = errors;
 }
 
 void HeaterItem::processTemperature() {
