@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-#define SETTINGS_VERSION	1
+#define SETTINGS_VERSION	2
 
 #ifdef DEBUG
 	#undef DEBUG
