@@ -124,6 +124,7 @@ public:
 	void setNotificationCallBack(NotificationCallBack);
 
 	static void sortHeaters(HeaterItem **array, int size);
+	static void sortHeatersByPowerConsumption(HeaterItem **array, int size);
 protected:
 private:
 	HeaterItem(const HeaterItem& c);
