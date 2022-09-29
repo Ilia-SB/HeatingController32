@@ -34,7 +34,7 @@
 static const char* HOSTNAME = "HeatingController32";
 
 //MQTT
-static const char* MQTT_URL = "192.168.0.3";
+static const char* MQTT_URL = "192.168.1.3";
 static const int MQTT_PORT = 1883;
 static const String COMMAND_TOPIC = "test/cmnd/heating/#";
 static const char* STATUS_TOPIC = "test/tele/heating";
@@ -42,7 +42,7 @@ static const char* ENERGY_METER_TOPIC = "tele/energy_meter";
 static const char* ERROR_TOPIC = "test/error/heating";
 
 //TCP
-static const char* TCP_URL = "192.168.0.3";
+static const char* TCP_URL = "192.168.1.3";
 static const uint16_t TCP_PORT = 8085;
 
 //JSON

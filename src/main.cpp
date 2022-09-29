@@ -100,6 +100,8 @@ unsigned long emergencyHandled = 0;
 
 bool heatersInitialized = false;
 
+bool flagRestartNow = false;
+
 
 void ethernetLed(uint8_t);
 void mqttLed(uint8_t);
@@ -548,6 +550,20 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += "\"></td></tr></tbody></table><button name=\"save\" type=\"submit\" class=\"bgrn\">Save</button></div></fieldset></form>";
         }
     }
+    if (placeholder.equals("GLOBAL_SETTINGS")) {
+        retValue += "<tr><td class=\"name\">Hysteresis</td><td class=\"value\"><input type=\"text\" name=\"hysteresis\" value=\"";
+        retValue += String(settings.hysteresis, 1U);
+        retValue += "\"></td></tr>";
+        for (uint8_t i=1; i<NUMBER_OF_PHASES+1; i++) {
+            retValue += "<tr><td class=\"name\">Phase ";
+            retValue += String(i);
+            retValue += " limit</td><td class=\"value\"><input type=\"text\" name=\"phase_";
+            retValue += String(i);
+            retValue += "\" value=\"";
+            retValue += String(settings.consumptionLimit[i-1]);
+            retValue += "\"></td></tr>";
+        }
+    }
     return retValue;
 }
 
@@ -776,6 +792,23 @@ void loadState(HeaterItem& heaterItem, uint8_t itemNumber) {
 }
 
 void processSettingsForm(AsyncWebServerRequest* request) {
+    if (request->hasParam("global_settings", true)) {
+        if (request->hasParam("hysteresis", true)) {
+            settings.hysteresis = request->getParam("hysteresis", true)->value().toFloat();
+        }
+        for (uint8_t i=1; i<NUMBER_OF_PHASES+1; i++) {
+            String paramName = "phase_";
+            paramName += String(i);
+            if (request->hasParam(paramName, true)) {
+                settings.consumptionLimit[i-1] = request->getParam(paramName, true)->value().toInt();
+            }
+        }
+    }
+    saveSettings(settings);
+    request->send(SPIFFS, "/rebooting.html");
+    flagRestartNow = true;
+    return;
+
     uint8_t itemNo=0;
     if (request->hasParam("item", true)) {
         String var = request->getParam("item", true)->value();
@@ -906,6 +939,8 @@ bool checkSensorConnected(HeaterItem& heater) {
 }
 
 void processHeaters() {
+    if (flagRestartNow)
+        return;
     DEBUG_PRINTLN("Processing heaters...");
     for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
         newDataAvailable = false;
@@ -1146,6 +1181,9 @@ void setup()
     server.on("/settings", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     });
+    server.on("/rebooting.html", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/rebooting.html", "text/html");
+    });
     server.on("/settings", HTTP_POST, processSettingsForm);
 
     server.onNotFound([](AsyncWebServerRequest* request) {
@@ -1174,6 +1212,11 @@ void setup()
 // Add the main program code into the continuous loop() function
 void loop()
 {
+    if (flagRestartNow) {
+        auto now = millis();
+        while (millis() - now < 500) {}
+        ESP.restart();
+    }
     if (mqttClient.connected()) {
         mqttClient.loop();
     }
