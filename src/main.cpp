@@ -98,12 +98,13 @@ bool flagEmergency = false;
 unsigned long consumptionDataReceived[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
 unsigned long emergencyHandled = 0;
 
+bool heatersInitialized = false;
+
 
 void ethernetLed(uint8_t);
 void mqttLed(uint8_t);
 void oneWireLed(uint8_t);
 void updateOutputs(uint16_t);
-void heaterItemPortCallback(uint8_t, bool);
 void setPorts(boolean[]);
 void processCommand(char*, char*, char*);
 void mqttCallback(char*, byte*, const unsigned int);
@@ -131,6 +132,9 @@ void processHeaters(void);
 uint16_t calculateHeatersConsumption(uint8_t);
 void sanityCheckHeater(HeaterItem&);
 void deleteSettings(void);
+
+void heaterItemOutputCallback(uint8_t, bool);
+void heaterItemNotificationCallback(const String& subtopic, const char* field, bool state);
 
 
 void ethernetLed(uint8_t mode) {
@@ -180,12 +184,27 @@ void updateOutputs(uint16_t outputs) {
     digitalWrite(LS_STB, HIGH);
 }
 
-void heaterItemPortCallback(uint8_t port, bool state) {
+void heaterItemOutputCallback(uint8_t port, bool state) {
     if (state == true)
         bitSet(outputs, port - 1); //physical port numbers are 1-based, thus -1
     else
         bitClear(outputs, port - 1);
     updateOutputs(outputs);
+}
+
+void heaterItemNotificationCallback(const String& subtopic, const char* field, bool state) {
+            StaticJsonDocument<JSON_DOCUMENT_SIZE_SMALL> doc;
+            doc[field] = state;
+            String mqttPayload;
+            serializeJson(doc, mqttPayload);
+
+            String mqttTopic;
+            mqttTopic += STATUS_TOPIC;
+            mqttTopic += "/";
+            mqttTopic += subtopic;
+            mqttTopic += "/STATE";
+
+            mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), false);
 }
 
 void setPorts(boolean ports[NUMBER_OF_PORTS]) {
@@ -276,73 +295,37 @@ void processCommand(char* item, char* command, char* payload) {
     HeaterItem* heater = &heaterItems[heaterNum];
 
     if (strcasecmp(command, IS_AUTO) == 0) {
-        if (heater->setIsAuto(payload)) {
-            sanityCheckHeater(*heater);
-            heater->getIsAutoCStr(val);
-            strcat(statusTopic, IS_AUTO);
-        }
+        heater->setIsAuto(payload);
     }
     if (strcasecmp(command, IS_ON) == 0) {
-        if (heater->setIsOn(payload)) {
-            heater->getIsOnCStr(val);
-            strcat(statusTopic, IS_ON);
-        }
+        heater->setWantsOn(payload);
     }
     if (strcasecmp(command, PRIORITY) == 0) {
-        if (heater->setPriority(payload)) {
-            sanityCheckHeater(*heater);
-            heater->getPriorityCStr(val);
-            strcat(statusTopic, PRIORITY);
-        }
+        heater->setPriority(payload);
     }
     if (strcasecmp(command, TARGET_TEMPERATURE) == 0) {
-        if (heater->setTargetTemperature(payload)) {
-            heater->getTargetTemperatureCStr(val);
-            strcat(statusTopic, TARGET_TEMPERATURE);
-        }
+        heater->setTargetTemperature(payload);
     }
     if (strcasecmp(command, SENSOR) == 0) {
-        if (heater->setSensorAddress(payload)) {
-            sanityCheckHeater(*heater);
-            heater->getSensorAddressCStr(val);
-            strcat(statusTopic, SENSOR);
-        }
+        heater->setSensorAddress(payload);
     }
     if (strcasecmp(command, PORT) == 0) {
-        if (heater->setPort(payload)) {
-            sanityCheckHeater(*heater);
-            heater->getPortCStr(val);
-            strcat(statusTopic, PORT);
-        }
+        heater->setPort(payload);
     }
     if (strcasecmp(command, PHASE) == 0) {
-        if (heater->setPhase(payload)) {
-            sanityCheckHeater(*heater);
-            heater->getPhaseCStr(val);
-            strcat(statusTopic, PHASE);
-        }
+        heater->setPhase(payload);
     }
     if (strcasecmp(command, TEMPERATURE_ADJUST) == 0) {
-        if (heater->setTemperatureAdjust(payload)) {
-            heater->getTemperatureAdjustCStr(val);
-            strcat(statusTopic, TEMPERATURE_ADJUST);
-        }
+        heater->setTemperatureAdjust(payload);
     }
     if (strcasecmp(command, CONSUMPTION) == 0) {
-        if (heater->setPowerConsumption(payload)) {
-            heater->getPowerConsumptionCStr(val);
-            strcat(statusTopic, CONSUMPTION);
-        }
+        heater->setPowerConsumption(payload);
     }
     if (strcasecmp(command, IS_ENABLED) == 0) {
-        if (heater->setIsEnaled(payload)) {
-            sanityCheckHeater(*heater);
-            heater->getIsEnabledCStr(val);
-            strcat(statusTopic, IS_ENABLED);
-        }
+        heater->setIsEnaled(payload);
     }
 
-    //mqttClient.publish(statusTopic, val, false);
+    sanityCheckHeater(*heater);
     reportHeaterState(*heater);
     saveState(*heater);
     newDataAvailable = true;
@@ -422,7 +405,8 @@ bool mqttConnect() {
         mqttClient.subscribe(ENERGY_METER_TOPIC);
         ISR_Timer.disable(TIMER_NUM_MQTT_LED_BLINK);
         mqttLed(HIGH);
-        reportHeatersState();
+        if (heatersInitialized)
+            reportHeatersState();
         return true;
     }
     else {
@@ -600,11 +584,32 @@ void readTemperaturesISR() {
 void readTemperatures() {
     DEBUG_PRINTLN("Reading temperatures...");
     for (uint8_t i = 0; i < NUMBER_OF_HEATERS; i++) {
-        float _temperature = sensors.getTempC(heaterItems[i].getSensorAddress());
-        if ((int)_temperature == HeaterItem::SENSOR_NOT_CONNECTED || (int)_temperature == HeaterItem::SENSOR_READ_ERROR) {
-            return;
+        if (heaterItems[i].getIsConnected() == true) {
+            float _temperature = sensors.getTempC(heaterItems[i].getSensorAddress());
+            DEBUG_PRINTLN(_temperature);
+            if ((int)_temperature != HeaterItem::SENSOR_NOT_CONNECTED && (int)_temperature != HeaterItem::SENSOR_READ_ERROR) {
+                heaterItems[i].setTemperature(_temperature);
+            } else {
+                DEBUG_PRINT("Error reading temperature for item ");DEBUG_PRINTLN(heaterItems[i].getName());
+                heaterItems[i].tempReadError();
+                if(heaterItems[i].getTempReadErrors() > MAX_TEMP_READ_ERRORS) {
+                    StaticJsonDocument<JSON_DOCUMENT_SIZE_SMALL> doc;
+                    doc[TEMPERATURE_READ_ERRORS] = heaterItems[i].getTempReadErrors();
+                    String mqttPayload;
+                    serializeJson(doc, mqttPayload);
+
+                    String mqttTopic;
+                    mqttTopic += STATUS_TOPIC;
+                    mqttTopic += "/";
+                    mqttTopic += heaterItems[i].getSubtopic();
+                    mqttTopic += "/STATE";
+
+                    mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), false);
+                DEBUG_PRINT("Heater ");DEBUG_PRINT(heaterItems[i].getName());DEBUG_PRINT(": number of temperature read errors: ");DEBUG_PRINTLN(heaterItems[i].getTempReadErrors());
+            }
+            }
         }
-        heaterItems[i].setTemperature(_temperature);
+
     }
     flagReadTemperatures = false;
     reportTemperatures();
@@ -644,9 +649,8 @@ void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& 
     doc["phase"] = heaterItem.getPhase();
     doc["isAuto"] = heaterItem.getIsAuto();
     doc["powerConsumption"] = heaterItem.getPowerConsumption();
-    doc["isOn"] = heaterItem.getIsOn();
+    doc["isOn"] = heaterItem.getWantsOn();
     doc["priority"] = heaterItem.getPriority();
-    doc["isConnected"] = heaterItem.getIsConnected();
     doc["targetTemperature"] = heaterItem.getTargetTemperature();
     doc["temperatureAdjust"] = heaterItem.getTemperatureAdjust();
 }
@@ -755,13 +759,13 @@ void loadState(HeaterItem& heaterItem) {
         heaterItem.setSensorAddress(addr);
         heaterItem.setPort(doc["port"].as<uint8_t>());
         heaterItem.setPhase(doc["phase"].as<uint8_t>());
-        heaterItem.setIsAuto(doc["isAuto"].as<bool>());
+
         heaterItem.setPowerConsumption(doc["powerConsumption"].as<uint16_t>());
-        heaterItem.setIsOn(doc["isOn"].as<bool>());
+        heaterItem.setWantsOn(doc["isOn"].as<bool>());
         heaterItem.setPriority(doc["priority"].as<uint8_t>());
-        heaterItem.setIsConnected(doc["isConnected"].as<bool>());
         heaterItem.setTargetTemperature(doc["targetTemperature"].as<float>());
         heaterItem.setTemperatureAdjust(doc["temperatureAdjust"].as<float>());
+        heaterItem.setIsAuto(doc["isAuto"].as<bool>());
     }
 }
 
@@ -814,7 +818,7 @@ void reportTemperatures() {
     for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
         if(heaterItems[i].getIsConnected() == true) {
             HeaterItem* heater = &heaterItems[i];
-            StaticJsonDocument<128> doc;
+            StaticJsonDocument<JSON_DOCUMENT_SIZE_SMALL> doc;
             doc["temperature"] = heater->getTemperature();
             String mqttPayload;
             serializeJson(doc, mqttPayload);
@@ -838,6 +842,7 @@ void reportHeatersState() {
 }
 
 void reportHeaterState(HeaterItem& heater) {
+        //TODO: move below code to functions
         StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
         itemToJson(heater, doc);
         String mqttTopic;
@@ -865,16 +870,18 @@ void reportHeaterState(HeaterItem& heater) {
 void initHeaters() {
 for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
         heaterItems[i].setHysteresis(settings.hysteresis);
-        heaterItems[i].setOutputCB(heaterItemPortCallback);
+        heaterItems[i].setOutputCallBack(heaterItemOutputCallback);
+        heaterItems[i].setNotificationCallBack(heaterItemNotificationCallback);
         loadState(heaterItems[i], i);
         heaterItems[i].setActualState(false);
         if (heaterItems[i].getIsAuto()) {
-            heaterItems[i].setIsOn(false);
             heaterItems[i].setWantsOn(false);
         }
         heaterItems[i].setIsConnected(checkSensorConnected(heaterItems[i]));
         
         sanityCheckHeater(heaterItems[i]);
+        heatersInitialized = true;
+        reportHeatersState;
     }
 }
 
@@ -898,6 +905,7 @@ bool checkSensorConnected(HeaterItem& heater) {
 }
 
 void processHeaters() {
+    DEBUG_PRINTLN("Processing heaters...");
     for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
         newDataAvailable = false;
         int16_t availablePower = 0;
@@ -1072,6 +1080,7 @@ void setup()
     ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
 
     tcpConnect();
+    mqttConnect();
 
     DEBUG_PRINTLN("HeatingController32 V1.0 starting...");
     DEBUG_PRINTLN("Debug mode");
@@ -1111,9 +1120,6 @@ void setup()
     }
     DEBUG_PRINTLN();
 
-    //init heaterItems
-    initHeaters();
- 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
         String html;
         File root = SPIFFS.open("/");
@@ -1146,8 +1152,13 @@ void setup()
     AsyncElegantOTA.begin(&server);
     server.begin();
 
+    //init heaterItems
+    initHeaters();
+
     requestTemperatures();
-    delay(1000);
+    while (!flagReadTemperatures) {
+        yield();
+    }
     readTemperatures();
 
     ISR_Timer.enable(TIMER_NUM_REQUEST_TEMPERATURES);

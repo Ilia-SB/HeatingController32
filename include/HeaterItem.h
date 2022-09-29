@@ -13,7 +13,8 @@
 #define SENSOR_ADDR_LEN	8
 #define SENSOR_ADDR_UNCONFIGURED {0,0,0,0,0,0,0,0};
 
-typedef void (*OutputCB)(uint8_t, bool);
+typedef void (*OutputCallBack)(uint8_t, bool);
+typedef void (*NotificationCallBack)(const String& subtopic, const char* field, bool state);
 
 class HeaterItem
 {
@@ -38,11 +39,11 @@ private:
 	byte pin;
 	boolean isAuto = false;
 	uint16_t powerConsumption = 0;
-	boolean isOn = false;
 	boolean wantsOn = false;
 	byte priority = 100;
 	boolean isConnected = false;
 	boolean actualState = false;
+	uint16_t tempReadErrors = 0;
 
 	float temperature = 0;
 	float targetTemperature = 0;
@@ -50,7 +51,8 @@ private:
 	float temperatureAdjust = 0;
 	float hysteresis = 0;
 
-	OutputCB setPortCallback;
+	OutputCallBack outputCallback;
+	NotificationCallBack notificationCallback;
 
 	//functions
 public:
@@ -78,11 +80,8 @@ public:
 	bool setIsAuto(const char* val);
 	bool getIsAuto(void);
 	void getIsAutoCStr(char* val);
-	void setIsOn(const bool b);
-	bool setIsOn(const char* val);
-	bool getIsOn(void);
-	void getIsOnCStr(char* val);
 	void setWantsOn(const bool b);
+	bool setWantsOn(const char* val);
 	bool getWantsOn(void);
 	bool setActualState(const bool);
 	bool getActualState(void);
@@ -114,11 +113,15 @@ public:
 	bool setIsEnaled(const char* val);
 	bool getIsEnabled(void);
 	void getIsEnabledCStr(char* val);
-	void setOutputCB(OutputCB);
 	bool setHysteresis(const float);
 	float getHysteresis(void);
 	void setIsConnected(const bool b);
 	bool getIsConnected(void);
+	void tempReadError(void);
+	uint16_t getTempReadErrors(void);
+
+	void setOutputCallBack(OutputCallBack);
+	void setNotificationCallBack(NotificationCallBack);
 
 	static void sortHeaters(HeaterItem **array, int size);
 protected:

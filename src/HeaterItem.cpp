@@ -93,7 +93,6 @@ void HeaterItem::getAddressString(String& string, const char* format) {
 
 void HeaterItem::setIsAuto(const bool b) {
 	if (isAuto == true && b == false) { //switching from auto to manual mode
-		setIsOn(false);
 		setWantsOn(false);
 	}
 	isAuto = b;
@@ -111,45 +110,15 @@ bool HeaterItem::setIsAuto(const char* val) {
 	return true;
 }
 
-void HeaterItem::getIsAutoCStr(char* val) {
-	if (isAuto)
-		strcpy(val, ON);
-	else
-		strcpy(val, OFF);
-}
-
-void HeaterItem::setIsOn(const bool b) {
-	isOn = b;
-	if (!isAuto) { //for manual heater
-		setWantsOn(b); // wantsOn is same as isOn
-	} else if (!b) { //for auto heaters OFF
-		setWantsOn(b); // means wantsOn = false
+bool HeaterItem::setWantsOn(const char* val) {
+	if (isAuto == false) {
+		if (strcmp(val, ON) == 0)
+			setWantsOn(true);
+		else if (strcmp(val, OFF) == 0)
+			setWantsOn(false);
+		else return false;
 	}
-}
-
-bool HeaterItem::setIsOn(const char* val) {
-	if (isAuto)
-		return false;
-
-	if (strcmp(val, ON) == 0) {
-		setIsOn(true);
-		setWantsOn(true);
-	}
-	else if (strcmp(val, OFF) == 0) {
-		setIsOn(false);
-		setWantsOn(false);
-	}
-	else
-		return false;
-
-	return true;
-}
-
-void HeaterItem::getIsOnCStr(char* val) {
-	if (isOn)
-		strcpy(val, ON);
-	else
-		strcpy(val, OFF);
+	return false;
 }
 
 bool HeaterItem::setPriority(const char* val) {
@@ -258,13 +227,19 @@ void HeaterItem::sortHeaters(HeaterItem **array, int size) {
 	}
 }
 
-void HeaterItem::setOutputCB(OutputCB callback) {
-	setPortCallback = callback;
+void HeaterItem::setOutputCallBack(OutputCallBack callback) {
+	outputCallback = callback;
+}
+
+void HeaterItem::setNotificationCallBack(NotificationCallBack callback) {
+	notificationCallback = callback;
 }
 
 bool HeaterItem::setActualState(const bool state) {
 	actualState = state;
-	setPortCallback(port, actualState);
+	outputCallback(port, actualState);
+	if (getIsEnabled() == true)
+		notificationCallback(subtopic, ACTUAL_STATE, state);
 	return true;
 }
 
@@ -310,10 +285,6 @@ bool HeaterItem::getIsAuto() {
 	return isAuto;
 }
 
-bool HeaterItem::getIsOn() {
-	return isOn;
-}
-
 void HeaterItem::setWantsOn(const bool b) {
 	wantsOn = b;
 }
@@ -339,6 +310,7 @@ byte* HeaterItem::getSensorAddress() {
 }
 
 void HeaterItem::setPort(const uint8_t p) {
+	setActualState(false);
 	port = p;
 }
 
@@ -376,7 +348,12 @@ uint16_t HeaterItem::getPowerConsumption() {
 }
 
 void HeaterItem::setIsEnabled(const bool b) {
+	setActualState(false);
+	setWantsOn(false);
 	isEnabled = b;
+	if (getIsAuto() == true) {
+		processTemperature();
+	}
 }
 
 bool HeaterItem::getIsEnabled() {
@@ -389,6 +366,14 @@ void HeaterItem::setIsConnected(const bool b) {
 
 bool HeaterItem::getIsConnected() {
 	return isConnected;
+}
+
+void HeaterItem::tempReadError() {
+	tempReadErrors++;
+}
+
+uint16_t HeaterItem::getTempReadErrors(void) {
+	return tempReadErrors;
 }
 
 void HeaterItem::processTemperature() {

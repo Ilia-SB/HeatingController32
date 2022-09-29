@@ -39,13 +39,15 @@ static const int MQTT_PORT = 1883;
 static const String COMMAND_TOPIC = "test/cmnd/heating/#";
 static const char* STATUS_TOPIC = "test/tele/heating";
 static const char* ENERGY_METER_TOPIC = "tele/energy_meter";
+static const char* ERROR_TOPIC = "test/error/heating";
 
 //TCP
 static const char* TCP_URL = "192.168.0.3";
 static const uint16_t TCP_PORT = 8085;
 
 //JSON
-#define JSON_DOCUMENT_SIZE 768 //384
+#define JSON_DOCUMENT_SIZE 768
+#define JSON_DOCUMENT_SIZE_SMALL 128
 #define JSON_DOCUMENT_SIZE_SETTINGS 256
 #define JSON_DOCUMENT_SIZE_ENERGY_METER 256
 
@@ -53,6 +55,7 @@ static const uint16_t TCP_PORT = 8085;
 #define NUMBER_OF_PORTS	  16
 #define NUMBER_OF_PHASES  3
 static const uint16_t CONSUMPTION_LIMITS[NUMBER_OF_PHASES] = {5000, 5000, 5000};
+#define MAX_TEMP_READ_ERRORS	100
 
 #define SENSOR_PIN 16 //Temperature sensors pin
 #define MAX_NUMBER_OF_SENSORS 16

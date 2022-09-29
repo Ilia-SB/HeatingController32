@@ -4,6 +4,7 @@
 #define TEMPERATURE					"temperature"
 #define IS_AUTO 					"isAuto"
 #define IS_ON						"isOn"
+#define ACTUAL_STATE                "actualState"
 #define PRIORITY					"priority"
 #define TARGET_TEMPERATURE			"targetTemperature"
 #define CONSUMPTION_LIMIT			"consumptionLimit"
@@ -15,7 +16,7 @@
 #define IS_ENABLED					"isEnabled"
 #define PHASE                       "phase"
 #define EEPROM_ERROR_ITEM				"eepromError"
-#define TEMPERATURE_READ_ERROR_ITEM		"tempReadError"
+#define TEMPERATURE_READ_ERRORS		"tempReadErrors"
 
 #define ON                              "ON"
 #define OFF                             "OFF"
