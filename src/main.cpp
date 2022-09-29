@@ -996,12 +996,12 @@ void processHeaters() {
             emergencyHandled = millis();
             flagEmergency = false;
             DEBUG_PRINT("Emergency handled. Available power: ");DEBUG_PRINTLN(availablePower);
-            return;
+            continue;
         }
 
         if (availablePower < 0) {
             DEBUG_PRINTLN("Available power is below 0. Makes no sense to continue.");
-            return;
+            continue;
         }
 
         //turn on
