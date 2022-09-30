@@ -226,11 +226,11 @@ void getConsumptionData(const char* rawData) {
         char key[5] = "POW";
         char idx = phase + 1 + 48; //convert (phase+1) to ascii
         strncat(key, &idx, 1);
-        DEBUG_PRINT(key); DEBUG_PRINT(" ");
+        //DEBUG_PRINT(key); DEBUG_PRINT(" ");
         if (doc.containsKey(key)) {
             currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
             consumptionDataReceived[phase] = millis();
-            DEBUG_PRINTLN(currentConsumption[phase]);
+            //DEBUG_PRINTLN(currentConsumption[phase]);
             if (currentConsumption[phase] > settings.consumptionLimit[phase]) {
                 flagEmergency = true;
             }
@@ -1185,6 +1185,11 @@ void setup()
     loadSettings(settings);
     DEBUG_PRINTLN("Initializing with settings:");
     DEBUG_PRINT("Hysteresis: "); DEBUG_PRINTLN(settings.hysteresis);
+    DEBUG_PRINT("MQTT url: "); DEBUG_PRINTLN(settings.mqttUrl);
+    DEBUG_PRINT("Mqtt port: "); DEBUG_PRINTLN(settings.mqttPort);
+    DEBUG_PRINT("TCP url: "); DEBUG_PRINTLN(settings.tcpUrl);
+    DEBUG_PRINT("TCP port: "); DEBUG_PRINTLN(settings.tcpPort);
+    DEBUG_PRINT("Use TCP: "); DEBUG_PRINTLN(settings.useTcp);
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         DEBUG_PRINT("Phase ");DEBUG_PRINT(i); DEBUG_PRINT(": consumption limit: ");DEBUG_PRINTLN(settings.consumptionLimit[i]);
     }
