@@ -95,6 +95,7 @@ volatile bool newDataAvailable = false;
 
 bool flagEmergency = false;
 
+bool consumptionDataRecieved = false;
 unsigned long consumptionDataReceived[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
 unsigned long emergencyHandled = 0;
 
@@ -228,6 +229,7 @@ void getConsumptionData(const char* rawData) {
         strncat(key, &idx, 1);
         //DEBUG_PRINT(key); DEBUG_PRINT(" ");
         if (doc.containsKey(key)) {
+            consumptionDataRecieved = true;
             currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
             consumptionDataReceived[phase] = millis();
             //DEBUG_PRINTLN(currentConsumption[phase]);
@@ -1172,7 +1174,6 @@ void setup()
     if (settings.useTcp) {
         tcpConnect();
     }
-    mqttConnect();
 
     DEBUG_PRINTLN("HeatingController32 V1.0 starting...");
     DEBUG_PRINTLN("Debug mode");
@@ -1252,6 +1253,8 @@ void setup()
     AsyncElegantOTA.begin(&server);
     server.begin();
 
+    mqttConnect();
+
     //init heaterItems
     initHeaters();
 
@@ -1260,6 +1263,15 @@ void setup()
         yield();
     }
     readTemperatures();
+
+
+    auto now = millis();
+    while (millis()-now < 5000) {
+        if (mqttClient.connected())
+            mqttClient.loop();
+        if (consumptionDataRecieved)
+        break;
+    }
 
     ISR_Timer.enable(TIMER_NUM_REQUEST_TEMPERATURES);
 
