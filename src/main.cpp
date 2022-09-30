@@ -233,6 +233,8 @@ void getConsumptionData(const char* rawData) {
             //DEBUG_PRINTLN(currentConsumption[phase]);
             if (currentConsumption[phase] > settings.consumptionLimit[phase]) {
                 flagEmergency = true;
+            } else {
+                flagEmergency = false;
             }
         }
     }
