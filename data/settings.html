@@ -8,9 +8,24 @@
 <body>
     <div style="display:inline-block; min-width:340px">
     <div style="color:#eaeaea;">
-        <h3>Settings<h3>
+        <h3>Settings</h3>
     </div>
-        %ITEMS_SETTINGS%
+    <p onclick="showHideGlobalSettings()" class="item">Global Settings</p>
+    <form style="color:#eaeaea;" method="post" action="/settings">
+        <fieldset id="global_settings" style="display: none;">
+            <input type="hidden" name="global_settings" value="0">
+            <div style="color:#eaeaea;text-align: left;">
+                <table>
+                    <tbody>
+                        %GLOBAL_SETTINGS%
+                    </tbody>
+                </table>
+                <button name="save" type="submit" class="bgrn">Save</button>
+            </div>
+        </fieldset>
+    </form>
+    %ITEMS_SETTINGS%
+    <p class="build-no">Build: %BUILD_NO%</p>
     <script>
         function showHideItem(itemNumber) {
             var div = document.getElementById("item_" + itemNumber);
@@ -20,7 +35,14 @@
                 div.style.display = "none";
             }
         }
+        function showHideGlobalSettings() {
+            var div = document.getElementById("global_settings");
+            if (div.style.display === "none") {
+                div.style.display = "block";
+            } else {
+                div.style.display = "none";
+            }
+        }
     </script>
-    </div>
 </body>
 </html>

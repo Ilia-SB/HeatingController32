@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-#define SETTINGS_VERSION	1
+#define SETTINGS_VERSION	2
 
 #ifdef DEBUG
 	#undef DEBUG
@@ -34,7 +34,7 @@
 static const char* HOSTNAME = "HeatingController32";
 
 //MQTT
-static const char* MQTT_URL = "192.168.0.3";
+static const char* MQTT_URL = "192.168.1.3";
 static const int MQTT_PORT = 1883;
 static const String COMMAND_TOPIC = "test/cmnd/heating/#";
 static const char* STATUS_TOPIC = "test/tele/heating";
@@ -42,13 +42,13 @@ static const char* ENERGY_METER_TOPIC = "tele/energy_meter";
 static const char* ERROR_TOPIC = "test/error/heating";
 
 //TCP
-static const char* TCP_URL = "192.168.0.3";
+static const char* TCP_URL = "192.168.1.3";
 static const uint16_t TCP_PORT = 8085;
 
 //JSON
 #define JSON_DOCUMENT_SIZE 768
 #define JSON_DOCUMENT_SIZE_SMALL 128
-#define JSON_DOCUMENT_SIZE_SETTINGS 256
+#define JSON_DOCUMENT_SIZE_SETTINGS 384
 #define JSON_DOCUMENT_SIZE_ENERGY_METER 256
 
 #define NUMBER_OF_HEATERS 16

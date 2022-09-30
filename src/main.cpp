@@ -100,6 +100,8 @@ unsigned long emergencyHandled = 0;
 
 bool heatersInitialized = false;
 
+bool flagRestartNow = false;
+
 
 void ethernetLed(uint8_t);
 void mqttLed(uint8_t);
@@ -224,11 +226,11 @@ void getConsumptionData(const char* rawData) {
         char key[5] = "POW";
         char idx = phase + 1 + 48; //convert (phase+1) to ascii
         strncat(key, &idx, 1);
-        DEBUG_PRINT(key); DEBUG_PRINT(" ");
+        //DEBUG_PRINT(key); DEBUG_PRINT(" ");
         if (doc.containsKey(key)) {
             currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
             consumptionDataReceived[phase] = millis();
-            DEBUG_PRINTLN(currentConsumption[phase]);
+            //DEBUG_PRINTLN(currentConsumption[phase]);
             if (currentConsumption[phase] > settings.consumptionLimit[phase]) {
                 flagEmergency = true;
             }
@@ -382,7 +384,7 @@ bool tcpConnect() {
         return false;
     }
 
-    if (tcpClient.connect(TCP_URL, TCP_PORT)) {
+    if (tcpClient.connect(settings.tcpUrl.c_str(), settings.tcpPort)) {
         Serial.println("TCP client connected.");
         return true;
     } else {
@@ -397,7 +399,7 @@ bool mqttConnect() {
         return false;
     }
     ISR_Timer.enable(TIMER_NUM_MQTT_LED_BLINK);
-    mqttClient.setServer(MQTT_URL, MQTT_PORT);
+    mqttClient.setServer(settings.mqttUrl.c_str(), settings.mqttPort);
     mqttClient.setCallback(mqttCallback);
     if (mqttClient.connect(HOSTNAME)) {
         DEBUG_PRINTLN("MQTT connected");
@@ -548,6 +550,35 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += "\"></td></tr></tbody></table><button name=\"save\" type=\"submit\" class=\"bgrn\">Save</button></div></fieldset></form>";
         }
     }
+    if (placeholder.equals("GLOBAL_SETTINGS")) {
+        retValue += "<tr><td class=\"name\">Hysteresis</td><td class=\"value\"><input type=\"text\" name=\"hysteresis\" value=\"";
+        retValue += String(settings.hysteresis, 1U);
+        retValue += "\"></td></tr>";
+        retValue += "<tr><td class=\"name\">MQTT url</td><td class=\"value\"><input type=\"text\" name=\"mqttUrl\" value=\"";
+        retValue += settings.mqttUrl;
+        retValue += "\"></td></tr>";
+        retValue += "<tr><td class=\"name\">MQTT port</td><td class=\"value\"><input type=\"text\" name=\"mqttPort\" value=\"";
+        retValue += String(settings.mqttPort);
+        retValue += "\"></td></tr>";
+        retValue += "<tr><td class=\"name\">TCP url</td><td class=\"value\"><input type=\"text\" name=\"tcpUrl\" value=\"";
+        retValue += settings.tcpUrl;
+        retValue += "\"></td></tr>";
+        retValue += "<tr><td class=\"name\">TCP port</td><td class=\"value\"><input type=\"text\" name=\"tcpPort\" value=\"";
+        retValue += String(settings.tcpPort);
+        retValue += "\"></td></tr>";
+        retValue += "<tr><td class=\"name\">Use TCP</td><td class=\"value\"><input type=\"checkbox\" name=\"useTcp\"";
+        retValue += settings.useTcp?" checked":"";
+        retValue += "></td></tr>";
+        for (uint8_t i=1; i<NUMBER_OF_PHASES+1; i++) {
+            retValue += "<tr><td class=\"name\">Phase ";
+            retValue += String(i);
+            retValue += " limit</td><td class=\"value\"><input type=\"text\" name=\"phase_";
+            retValue += String(i);
+            retValue += "\" value=\"";
+            retValue += String(settings.consumptionLimit[i-1]);
+            retValue += "\"></td></tr>";
+        }
+    }
     return retValue;
 }
 
@@ -618,9 +649,14 @@ void readTemperatures() {
 }
 
 void setDefaultSettings(Settings& settings) {
+    settings.hysteresis = DEFAULT_HYSTERESIS;
+    settings.mqttUrl = MQTT_URL;
+    settings.mqttPort = MQTT_PORT;
+    settings.tcpUrl = TCP_URL;
+    settings.tcpPort = TCP_PORT;
+    settings.useTcp = false;
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         settings.consumptionLimit[i] = CONSUMPTION_LIMITS[i];
-        settings.hysteresis = DEFAULT_HYSTERESIS;
     }
     saveSettings(settings);
 }
@@ -660,8 +696,13 @@ void saveSettings(Settings& settings) {
     const char fileName[] = "/settings";
     File file = SPIFFS.open(fileName, FILE_WRITE, true);
     StaticJsonDocument<JSON_DOCUMENT_SIZE_SETTINGS> doc;
-    doc["settingsVersion"] = SETTINGS_VERSION;
-    doc["hysteresis"] = settings.hysteresis;
+    doc[SETTINGS_SETTINGS_VERSION] = SETTINGS_VERSION;
+    doc[SETTINGS_HYSTERESIS] = settings.hysteresis;
+    doc[SETTINGS_MQTT_URL] = settings.mqttUrl;
+    doc[SETTINGS_MQTT_PORT] = settings.mqttPort;
+    doc[SETTINGS_TCP_URL] = settings.tcpUrl;
+    doc[SETTINGS_TCP_PORT] = settings.tcpPort;
+    doc[SETTINGS_USE_TCP] = settings.useTcp;
     JsonArray consumptionLimit = doc.createNestedArray("consumptionLimit");
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         consumptionLimit.add(settings.consumptionLimit[i]);
@@ -709,13 +750,18 @@ void loadSettings(Settings& settings) {
         StaticJsonDocument<JSON_DOCUMENT_SIZE_SETTINGS> doc;
         deserializeJson(doc, file);
 
-        if (!doc.containsKey("settingsVersion") || doc["settingsVersion"] != SETTINGS_VERSION) {
+        if (!doc.containsKey(SETTINGS_SETTINGS_VERSION) || doc[SETTINGS_SETTINGS_VERSION] != SETTINGS_VERSION) {
             DEBUG_PRINTLN("Settings version mismatch.");
             deleteSettings();
         }
 
-        settings.hysteresis = doc["hysteresis"].as<float>();
-        JsonArray consumptionLimit = doc["consumptionLimit"];
+        settings.hysteresis = doc[SETTINGS_HYSTERESIS].as<float>();
+        settings.mqttUrl = doc[SETTINGS_MQTT_URL].as<String>();
+        settings.mqttPort = doc[SETTINGS_MQTT_PORT].as<uint16_t>();
+        settings.tcpUrl = doc[SETTINGS_TCP_URL].as<String>();
+        settings.tcpPort = doc[SETTINGS_TCP_PORT].as<uint16_t>();
+        settings.useTcp = doc[SETTINGS_USE_TCP].as<bool>();
+        JsonArray consumptionLimit = doc[SETTINGS_CONSUMPTION_LIMIT];
         for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
             settings.consumptionLimit[i] = consumptionLimit.getElement(i).as<uint16_t>();
         }
@@ -776,6 +822,41 @@ void loadState(HeaterItem& heaterItem, uint8_t itemNumber) {
 }
 
 void processSettingsForm(AsyncWebServerRequest* request) {
+    if (request->hasParam("global_settings", true)) {
+        if (request->hasParam(SETTINGS_HYSTERESIS, true)) {
+            settings.hysteresis = request->getParam(SETTINGS_HYSTERESIS, true)->value().toFloat();
+        }
+        if (request->hasParam(SETTINGS_MQTT_URL, true)) {
+            settings.mqttUrl = request->getParam(SETTINGS_MQTT_URL, true)->value();
+        }
+        if (request->hasParam(SETTINGS_MQTT_PORT, true)) {
+            settings.mqttPort = request->getParam(SETTINGS_MQTT_PORT, true)->value().toInt();
+        }
+        if (request->hasParam(SETTINGS_TCP_URL, true)) {
+            settings.tcpUrl = request->getParam(SETTINGS_TCP_URL, true)->value();
+        }
+        if (request->hasParam(SETTINGS_TCP_PORT, true)) {
+            settings.tcpPort = request->getParam(SETTINGS_TCP_PORT, true)->value().toInt();
+        }
+        if (request->hasParam(SETTINGS_USE_TCP, true)) { //if checkbox checked, request has param, otherwise not. no need to check the value
+            settings.useTcp = true;
+        } else {
+            settings.useTcp = false;
+        }
+        for (uint8_t i=1; i<NUMBER_OF_PHASES+1; i++) {
+            String paramName = "phase_";
+            paramName += String(i);
+            if (request->hasParam(paramName, true)) {
+                settings.consumptionLimit[i-1] = request->getParam(paramName, true)->value().toInt();
+            }
+        }
+    }
+    saveSettings(settings);
+    //TODO: fancy javascript for redirect
+    request->send(SPIFFS, "/rebooting.html");
+    flagRestartNow = true;
+    return;
+
     uint8_t itemNo=0;
     if (request->hasParam("item", true)) {
         String var = request->getParam("item", true)->value();
@@ -906,6 +987,8 @@ bool checkSensorConnected(HeaterItem& heater) {
 }
 
 void processHeaters() {
+    if (flagRestartNow)
+        return;
     DEBUG_PRINTLN("Processing heaters...");
     for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
         newDataAvailable = false;
@@ -1084,7 +1167,9 @@ void setup()
     WiFi.onEvent(WiFiEvent);
     ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
 
-    tcpConnect();
+    if (settings.useTcp) {
+        tcpConnect();
+    }
     mqttConnect();
 
     DEBUG_PRINTLN("HeatingController32 V1.0 starting...");
@@ -1100,6 +1185,11 @@ void setup()
     loadSettings(settings);
     DEBUG_PRINTLN("Initializing with settings:");
     DEBUG_PRINT("Hysteresis: "); DEBUG_PRINTLN(settings.hysteresis);
+    DEBUG_PRINT("MQTT url: "); DEBUG_PRINTLN(settings.mqttUrl);
+    DEBUG_PRINT("Mqtt port: "); DEBUG_PRINTLN(settings.mqttPort);
+    DEBUG_PRINT("TCP url: "); DEBUG_PRINTLN(settings.tcpUrl);
+    DEBUG_PRINT("TCP port: "); DEBUG_PRINTLN(settings.tcpPort);
+    DEBUG_PRINT("Use TCP: "); DEBUG_PRINTLN(settings.useTcp);
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         DEBUG_PRINT("Phase ");DEBUG_PRINT(i); DEBUG_PRINT(": consumption limit: ");DEBUG_PRINTLN(settings.consumptionLimit[i]);
     }
@@ -1146,6 +1236,9 @@ void setup()
     server.on("/settings", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     });
+    server.on("/rebooting.html", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/rebooting.html", "text/html");
+    });
     server.on("/settings", HTTP_POST, processSettingsForm);
 
     server.onNotFound([](AsyncWebServerRequest* request) {
@@ -1174,6 +1267,11 @@ void setup()
 // Add the main program code into the continuous loop() function
 void loop()
 {
+    if (flagRestartNow) {
+        auto now = millis();
+        while (millis() - now < 500) {}
+        ESP.restart();
+    }
     if (mqttClient.connected()) {
         mqttClient.loop();
     }
