@@ -854,13 +854,14 @@ void processSettingsForm(AsyncWebServerRequest* request) {
                 settings.consumptionLimit[i-1] = request->getParam(paramName, true)->value().toInt();
             }
         }
+        saveSettings(settings);
+        //TODO: fancy javascript for redirect
+        request->send(SPIFFS, "/rebooting.html");
+        flagRestartNow = true;
+        return;
     }
-    saveSettings(settings);
-    //TODO: fancy javascript for redirect
-    request->send(SPIFFS, "/rebooting.html");
-    flagRestartNow = true;
-    return;
 
+    //items
     uint8_t itemNo=0;
     if (request->hasParam("item", true)) {
         String var = request->getParam("item", true)->value();
