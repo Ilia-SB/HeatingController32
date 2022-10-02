@@ -1172,6 +1172,14 @@ void setup()
     WiFi.onEvent(WiFiEvent);
     ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
 
+    if (!SPIFFS.begin(true)) {
+        Serial.println("An Error has occurred while mounting SPIFFS");
+        return;
+    }
+
+    //init settings
+    loadSettings(settings);
+
     if (settings.useTcp) {
         auto now = millis();
         while(millis() - now < 2000) {
@@ -1180,18 +1188,10 @@ void setup()
             }
         }
     }
-
     DEBUG_PRINT("HeatingController32 Ver. ");DEBUG_PRINT(VERSION_SHORT);DEBUG_PRINTLN(" starting...");
     DEBUG_PRINTLN("Debug mode");
     DEBUG_PRINTLN();
 
-    if (!SPIFFS.begin(true)) {
-        Serial.println("An Error has occurred while mounting SPIFFS");
-        return;
-    }
-
-    //init settings
-    loadSettings(settings);
     DEBUG_PRINTLN("Initializing with settings:");
     DEBUG_PRINT("Hysteresis: "); DEBUG_PRINTLN(settings.hysteresis);
     DEBUG_PRINT("MQTT url: "); DEBUG_PRINTLN(settings.mqttUrl);
