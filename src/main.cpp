@@ -1254,6 +1254,9 @@ void setup()
     AsyncElegantOTA.begin(&server);
     server.begin();
 
+    if (settings.useTcp) {
+        tcpConnect();
+    }
     mqttConnect();
 
     //init heaterItems
