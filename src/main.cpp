@@ -703,6 +703,8 @@ void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& 
     doc["priority"] = heaterItem.getPriority();
     doc["targetTemperature"] = heaterItem.getTargetTemperature();
     doc["temperatureAdjust"] = heaterItem.getTemperatureAdjust();
+    if (forReport)
+        doc["temperature"] = heaterItem.getTemperature();
 }
 
 void saveSettings(Settings& settings) {
@@ -913,19 +915,7 @@ void processSettingsForm(AsyncWebServerRequest* request) {
 void reportTemperatures() {
     for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
         if(heaterItems[i].getIsConnected() ==  true && heaterItems[i].getIsEnabled() == true) {
-            HeaterItem* heater = &heaterItems[i];
-            StaticJsonDocument<JSON_DOCUMENT_SIZE_SMALL> doc;
-            doc["temperature"] = heater->getTemperature();
-            String mqttPayload;
-            serializeJson(doc, mqttPayload);
-
-            String mqttTopic;
-            mqttTopic += STATUS_TOPIC;
-            mqttTopic += "/";
-            mqttTopic += heater->getSubtopic();
-            mqttTopic += "/STATE";
-
-            mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), false);
+            reportHeaterState(heaterItems[i]);
         }
     }
 }
