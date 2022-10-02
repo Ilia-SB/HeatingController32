@@ -1173,10 +1173,15 @@ void setup()
     ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
 
     if (settings.useTcp) {
-        tcpConnect();
+        auto now = millis();
+        while(millis() - now < 2000) {
+            if (tcpConnect()) {
+                break;
+            }
+        }
     }
 
-    DEBUG_PRINTLN("HeatingController32 V1.0 starting...");
+    DEBUG_PRINT("HeatingController32 Ver. ");DEBUG_PRINT(VERSION_SHORT);DEBUG_PRINTLN(" starting...");
     DEBUG_PRINTLN("Debug mode");
     DEBUG_PRINTLN();
 
@@ -1254,9 +1259,6 @@ void setup()
     AsyncElegantOTA.begin(&server);
     server.begin();
 
-    if (settings.useTcp) {
-        tcpConnect();
-    }
     mqttConnect();
 
     //init heaterItems
