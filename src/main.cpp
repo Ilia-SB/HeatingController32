@@ -118,7 +118,7 @@ String webServerPlaceholderProcessor(const String&);
 void oneWireBlinkDetectedSensors(uint8_t);
 void setDefaultSettings(Settings&);
 void setDefaults(HeaterItem&);
-void itemToJson(HeaterItem&, StaticJsonDocument<JSON_DOCUMENT_SIZE>&);
+void itemToJson(HeaterItem&, StaticJsonDocument<JSON_DOCUMENT_SIZE>&, bool);
 void saveSettings(Settings&);
 void loadSettings(Settings&);
 void saveState(HeaterItem&);
@@ -674,11 +674,14 @@ void setDefaults(HeaterItem& heaterItem) {
     heaterItem.setTemperatureAdjust(5.0f);
 }
 
-void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& doc) {
+void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& doc, bool forReport) {
     doc["name"] = heaterItem.getName();
     doc["address"] = heaterItem.getAddress();
     doc["subtopic"] = heaterItem.getSubtopic();
-    doc["isEnabled"] = heaterItem.getIsEnabled();
+    if (forReport)
+        doc["isEnabled"] = heaterItem.getIsEnabled()?ON:OFF;
+    else
+        doc["isEnabled"] = heaterItem.getIsEnabled();
     JsonArray sensorAddress = doc.createNestedArray("sensorAddress");
     for (uint8_t i=0; i<SENSOR_ADDR_LEN; i++) {
         sensorAddress.add(heaterItem.getSensorAddress()[i]);
@@ -688,9 +691,15 @@ void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& 
     doc["sensorAddressString"] = addr;
     doc["port"] = heaterItem.getPort();
     doc["phase"] = heaterItem.getPhase();
-    doc["isAuto"] = heaterItem.getIsAuto();
+    if (forReport)
+        doc["isAuto"] = heaterItem.getIsAuto()?ON:OFF;
+    else
+        doc["isAuto"] = heaterItem.getIsAuto();
     doc["powerConsumption"] = heaterItem.getPowerConsumption();
-    doc["isOn"] = heaterItem.getWantsOn();
+    if (forReport)
+        doc["isOn"] = heaterItem.getWantsOn()?ON:OFF;
+    else
+        doc["isOn"] = heaterItem.getWantsOn();
     doc["priority"] = heaterItem.getPriority();
     doc["targetTemperature"] = heaterItem.getTargetTemperature();
     doc["temperatureAdjust"] = heaterItem.getTemperatureAdjust();
@@ -729,7 +738,7 @@ void saveState(HeaterItem& heaterItem) {
     File file = SPIFFS.open(fileName, FILE_WRITE, true);
     
     StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
-    itemToJson(heaterItem, doc);
+    itemToJson(heaterItem, doc, false);
 
 #ifdef DEBUG
     DEBUG_PRINT("Saving settings to: "); DEBUG_PRINTLN(fileName);
@@ -931,7 +940,7 @@ void reportHeatersState() {
 void reportHeaterState(HeaterItem& heater) {
         //TODO: move below code to functions
         StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
-        itemToJson(heater, doc);
+        itemToJson(heater, doc, true);
         String mqttTopic;
         mqttTopic += STATUS_TOPIC;
         mqttTopic += "/";
