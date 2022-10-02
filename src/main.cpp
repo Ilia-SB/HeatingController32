@@ -903,7 +903,7 @@ void processSettingsForm(AsyncWebServerRequest* request) {
 
 void reportTemperatures() {
     for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-        if(heaterItems[i].getIsConnected() == true) {
+        if(heaterItems[i].getIsConnected() ==  true && heaterItems[i].getIsEnabled() == true) {
             HeaterItem* heater = &heaterItems[i];
             StaticJsonDocument<JSON_DOCUMENT_SIZE_SMALL> doc;
             doc["temperature"] = heater->getTemperature();
