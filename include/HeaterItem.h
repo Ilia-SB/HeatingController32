@@ -14,7 +14,7 @@
 #define SENSOR_ADDR_UNCONFIGURED {0,0,0,0,0,0,0,0};
 
 typedef void (*OutputCallBack)(uint8_t, bool);
-typedef void (*NotificationCallBack)(const String& subtopic, const char* field, bool state);
+typedef void (*NotificationCallBack)(const HeaterItem& heater);
 
 class HeaterItem
 {

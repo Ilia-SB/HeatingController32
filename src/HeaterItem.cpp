@@ -256,9 +256,9 @@ void HeaterItem::setNotificationCallBack(NotificationCallBack callback) {
 
 bool HeaterItem::setActualState(const bool state) {
 	actualState = state;
-	outputCallback(port, actualState);
 	if (getIsEnabled() == true)
-		notificationCallback(subtopic, ACTUAL_STATE, state);
+		outputCallback(port, actualState);
+		notificationCallback(this);
 	return true;
 }
 

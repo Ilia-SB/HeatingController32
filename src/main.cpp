@@ -126,7 +126,7 @@ void loadState(HeaterItem&);
 void loadState(HeaterItem&, uint8_t);
 void processSettingsForm(AsyncWebServerRequest*);
 void reportHeatersState(void);
-void reportHeaterState(HeaterItem&);
+void reportHeaterState(const HeaterItem&);
 void reportTemperatures(void);
 void getConsumptionData(const char*);
 void initHeaters(void);
@@ -137,7 +137,7 @@ void sanityCheckHeater(HeaterItem&);
 void deleteSettings(void);
 
 void heaterItemOutputCallback(uint8_t, bool);
-void heaterItemNotificationCallback(const String& subtopic, const char* field, bool state);
+void heaterItemNotificationCallback(const HeaterItem& heater);
 
 
 void ethernetLed(uint8_t mode) {
@@ -195,19 +195,9 @@ void heaterItemOutputCallback(uint8_t port, bool state) {
     updateOutputs(outputs);
 }
 
-void heaterItemNotificationCallback(const String& subtopic, const char* field, bool state) {
-            StaticJsonDocument<JSON_DOCUMENT_SIZE_SMALL> doc;
-            doc[field] = state;
-            String mqttPayload;
-            serializeJson(doc, mqttPayload);
-
-            String mqttTopic;
-            mqttTopic += STATUS_TOPIC;
-            mqttTopic += "/";
-            mqttTopic += subtopic;
-            mqttTopic += "/STATE";
-
-            mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), false);
+void heaterItemNotificationCallback(const HeaterItem& heater) {
+    StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
+    reportHeaterState(heater);
 }
 
 void setPorts(boolean ports[NUMBER_OF_PORTS]) {
@@ -927,7 +917,7 @@ void reportHeatersState() {
     }
 }
 
-void reportHeaterState(HeaterItem& heater) {
+void reportHeaterState(const HeaterItem& heater) {
         //TODO: move below code to functions
         StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
         itemToJson(heater, doc, true);
