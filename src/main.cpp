@@ -126,7 +126,7 @@ void loadState(HeaterItem&);
 void loadState(HeaterItem&, uint8_t);
 void processSettingsForm(AsyncWebServerRequest*);
 void reportHeatersState(void);
-void reportHeaterState(const HeaterItem&);
+void reportHeaterState(HeaterItem&);
 void reportTemperatures(void);
 void getConsumptionData(const char*);
 void initHeaters(void);
@@ -137,7 +137,7 @@ void sanityCheckHeater(HeaterItem&);
 void deleteSettings(void);
 
 void heaterItemOutputCallback(uint8_t, bool);
-void heaterItemNotificationCallback(const HeaterItem& heater);
+void heaterItemNotificationCallback(HeaterItem& heater);
 
 
 void ethernetLed(uint8_t mode) {
@@ -195,7 +195,7 @@ void heaterItemOutputCallback(uint8_t port, bool state) {
     updateOutputs(outputs);
 }
 
-void heaterItemNotificationCallback(const HeaterItem& heater) {
+void heaterItemNotificationCallback(HeaterItem& heater) {
     StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
     reportHeaterState(heater);
 }
@@ -917,7 +917,7 @@ void reportHeatersState() {
     }
 }
 
-void reportHeaterState(const HeaterItem& heater) {
+void reportHeaterState(HeaterItem& heater) {
         //TODO: move below code to functions
         StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
         itemToJson(heater, doc, true);

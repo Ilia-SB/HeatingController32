@@ -13,11 +13,11 @@
 #define SENSOR_ADDR_LEN	8
 #define SENSOR_ADDR_UNCONFIGURED {0,0,0,0,0,0,0,0};
 
-typedef void (*OutputCallBack)(uint8_t, bool);
-typedef void (*NotificationCallBack)(const HeaterItem& heater);
-
 class HeaterItem
 {
+	typedef void (*OutputCallBack)(uint8_t, bool);
+	typedef void (*NotificationCallBack)(HeaterItem& heater);
+
 	//variables
 public:
 	static constexpr uint8_t UNCONFIGURED = 255;
