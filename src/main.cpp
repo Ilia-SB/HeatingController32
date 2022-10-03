@@ -1018,7 +1018,6 @@ void processHeaters() {
         DEBUG_PRINT(". Auto heaters count: ");DEBUG_PRINT(autoHeatersNum);DEBUG_PRINT(", manual heaters count: ");DEBUG_PRINTLN(manualHeatersNum);
 
         //turn off
-        DEBUG_PRINTLN("Turn off");
         //manual heaters
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
@@ -1082,7 +1081,6 @@ void processHeaters() {
         }
 
         //turn on
-        DEBUG_PRINTLN("Turn on");
         //manual heaters
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
