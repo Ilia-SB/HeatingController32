@@ -123,13 +123,13 @@ void saveSettings(Settings&);
 void loadSettings(Settings&);
 void saveState(HeaterItem&);
 void loadState(HeaterItem&);
-void loadState(HeaterItem&, uint8_t);
 void processSettingsForm(AsyncWebServerRequest*);
 void reportHeatersState(void);
 void reportHeaterState(HeaterItem&);
 void reportTemperatures(void);
 void getConsumptionData(const char*);
 void initHeaters(void);
+void initHeater(HeaterItem& heater);
 bool checkSensorConnected(HeaterItem& heater);
 void processHeaters(void);
 uint16_t calculateHeatersConsumption(uint8_t);
@@ -321,9 +321,10 @@ void processCommand(char* item, char* command, char* payload) {
         heater->setIsEnaled(payload);
     }
 
+    heater->setIsConnected(checkSensorConnected(*heater));
     sanityCheckHeater(*heater);
-    reportHeaterState(*heater);
     saveState(*heater);
+    reportHeaterState(*heater);
     newDataAvailable = true;
 }
 
@@ -821,11 +822,6 @@ void loadState(HeaterItem& heaterItem) {
     }
 }
 
-void loadState(HeaterItem& heaterItem, uint8_t itemNumber) {
-    heaterItem.setAddress(itemNumber);
-    loadState(heaterItem);
-}
-
 void processSettingsForm(AsyncWebServerRequest* request) {
     if (request->hasParam("global_settings", true)) {
         if (request->hasParam(SETTINGS_HYSTERESIS, true)) {
@@ -944,21 +940,26 @@ void reportHeaterState(HeaterItem& heater) {
 }
 
 void initHeaters() {
-for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-        heaterItems[i].setHysteresis(settings.hysteresis);
-        heaterItems[i].setOutputCallBack(heaterItemOutputCallback);
-        heaterItems[i].setNotificationCallBack(heaterItemNotificationCallback);
-        loadState(heaterItems[i], i);
-        heaterItems[i].setActualState(false);
-        if (heaterItems[i].getIsAuto()) {
-            heaterItems[i].setWantsOn(false);
-        }
-        heaterItems[i].setIsConnected(checkSensorConnected(heaterItems[i]));
-        
-        sanityCheckHeater(heaterItems[i]);
-        heatersInitialized = true;
-        reportHeatersState;
+    for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+        heaterItems[i].setAddress(i);
+        initHeater(heaterItems[i]);
     }
+        heatersInitialized = true;
+        reportHeatersState();
+}
+
+void initHeater(HeaterItem& heater) {
+    heater.setHysteresis(settings.hysteresis);
+    heater.setOutputCallBack(heaterItemOutputCallback);
+    heater.setNotificationCallBack(heaterItemNotificationCallback);
+        loadState(heater);
+        heater.setActualState(false);
+        if (heater.getIsAuto()) {
+            heater.setWantsOn(false);
+        }
+        heater.setIsConnected(checkSensorConnected(heater));
+        
+        sanityCheckHeater(heater);
 }
 
 void sanityCheckHeater(HeaterItem& heater) {
