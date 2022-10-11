@@ -1,1 +1,1 @@
-{"name":"Kitchen","address":0,"subtopic":"item_000000","isEnabled":true,"sensorAddress":[40,48,34,89,7,0,0,185],"sensorAddressString":"28 30 22 59 07 00 00 B9","port":1,"phase":2,"isAuto":false,"powerConsumption":1500,"isOn":false,"priority":10,"targetTemperature":5,"temperatureAdjust":0}
+{"name":"Kitchen","address":0,"subtopic":"item_000000","isEnabled":true,"sensorAddress":[40,48,34,89,7,0,0,185],"sensorAddressString":"28 30 22 59 07 00 00 B9","port":1,"phase":2,"isAuto":true,"powerConsumption":1500,"isOn":false,"priority":10,"targetTemperature":5,"temperatureAdjust":0}

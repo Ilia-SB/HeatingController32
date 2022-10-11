@@ -574,6 +574,21 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += "\"></td></tr>";
         }
     }
+    if (placeholder.equals("BACKUP_ITEM_FILE")) {
+        for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+            String fileName = "/item" + String(i);
+            if (SPIFFS.exists(fileName)) {
+                retValue += "<li><label><input type=\"checkbox\" data-url=\"";
+                retValue += fileName;
+                retValue += "\" checked>";
+                retValue += fileName;
+                retValue += " (";
+                retValue += heaterItems[i].getName();
+                retValue += " )";
+                retValue += "</label></li>";
+            }
+        }
+    }
     return retValue;
 }
 
@@ -1230,8 +1245,26 @@ void setup()
     server.on("/default.css", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/default.css", "text/css");
     });
+    server.on("/jquery-3.6.1.min.js", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/jquery-3.6.1.min.js", "text/javascript");
+    });
+    server.on("/jszip-utils.ie.min.js", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/jszip-utils.ie.min.js", "text/javascript");
+    });
+    server.on("/jszip-utils.min.js", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/jszip-utils.min.js", "text/javascript");
+    });
+    server.on("/jszip.min.js", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/jszip.min.js", "text/javascript");
+    });
+    server.on("/filesaver.min.js", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/filesaver.min.js", "text/javascript");
+    });
     server.on("/settings", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
+    });
+    server.on("/backup", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/backup.html", String(), false, webServerPlaceholderProcessor);
     });
     server.on("/rebooting.html", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/rebooting.html", "text/html");

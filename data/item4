@@ -1,0 +1,1 @@
+{"name":"Toilet 2","address":4,"subtopic":"item_000004","isEnabled":true,"sensorAddress":[40,232,166,139,6,0,0,165],"sensorAddressString":"28 E8 A6 8B 06 00 00 A5","port":5,"phase":3,"isAuto":true,"powerConsumption":1000,"isOn":false,"priority":1,"targetTemperature":5,"temperatureAdjust":0}

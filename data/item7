@@ -1,0 +1,1 @@
+{"name":"Room 3","address":7,"subtopic":"item_000007","isEnabled":true,"sensorAddress":[40,80,161,89,7,0,0,255],"sensorAddressString":"28 50 A1 59 07 00 00 FF","port":9,"phase":3,"isAuto":true,"powerConsumption":1000,"isOn":false,"priority":20,"targetTemperature":5,"temperatureAdjust":0}
