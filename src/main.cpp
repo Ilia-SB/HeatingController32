@@ -119,6 +119,8 @@ void oneWireBlinkDetectedSensors(uint8_t);
 void setDefaultSettings(Settings&);
 void setDefaults(HeaterItem&);
 void itemToJson(HeaterItem&, StaticJsonDocument<JSON_DOCUMENT_SIZE>&, bool);
+void getItemFilename(uint8_t, String&);
+void getSettingsFilename(String&);
 void saveSettings(Settings&);
 void loadSettings(Settings&);
 void saveState(HeaterItem&);
@@ -576,7 +578,8 @@ String webServerPlaceholderProcessor(const String& placeholder) {
     }
     if (placeholder.equals("BACKUP_ITEM_FILE")) {
         for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-            String fileName = "/item" + String(i);
+            String fileName;
+            getItemFilename(i, fileName);
             if (SPIFFS.exists(fileName)) {
                 retValue += "<li><label><input type=\"checkbox\" data-url=\"";
                 retValue += fileName;
@@ -677,7 +680,7 @@ void setDefaults(HeaterItem& heaterItem) {
     heaterItem.getAddressString(addr, "%06d");
     heaterItem.setSubtopic("item_" + addr);
     heaterItem.setTargetTemperature(5.0f);
-    heaterItem.setTemperatureAdjust(5.0f);
+    heaterItem.setTemperatureAdjust(0.0f);
 }
 
 void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& doc, bool forReport) {
@@ -713,8 +716,19 @@ void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& 
         doc["temperature"] = heaterItem.getTemperature();
 }
 
+void getItemFilename(uint8_t i, String& fileName) {
+    fileName = "/item";
+    fileName += String(i);
+    fileName += ".cfg";
+}
+
+void getSettingsFilename(String& fileName) {
+    fileName = "/settings.cfg";
+}
+
 void saveSettings(Settings& settings) {
-    const char fileName[] = "/settings";
+    String fileName;
+    getSettingsFilename(fileName);
     File file = SPIFFS.open(fileName, FILE_WRITE, true);
     StaticJsonDocument<JSON_DOCUMENT_SIZE_SETTINGS> doc;
     doc[SETTINGS_SETTINGS_VERSION] = SETTINGS_VERSION;
@@ -740,11 +754,9 @@ void saveSettings(Settings& settings) {
 }
 
 void saveState(HeaterItem& heaterItem) {
-    String fileName = "/item";
-    fileName += String(heaterItem.getAddress());
-
+    String fileName;
+    getItemFilename(heaterItem.getAddress(), fileName);
     File file = SPIFFS.open(fileName, FILE_WRITE, true);
-    
     StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
     itemToJson(heaterItem, doc, false);
 
@@ -760,8 +772,8 @@ void saveState(HeaterItem& heaterItem) {
 }
 
 void loadSettings(Settings& settings) {
-    const char fileName[] = "/settings";
-
+    String fileName;
+    getSettingsFilename(fileName);
     if (!SPIFFS.exists(fileName)) {
         setDefaultSettings(settings);
     }
@@ -791,10 +803,12 @@ void loadSettings(Settings& settings) {
 
 void deleteSettings() {
     DEBUG_PRINTLN("Deleting global settings.");
-    SPIFFS.remove("/settings");
+    String fileName;
+    getSettingsFilename(fileName);
+    SPIFFS.remove(fileName);
     for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-        String fileName = "/item";
-        fileName += String(i);
+        String fileName;
+        getItemFilename(i, fileName);
         if (SPIFFS.exists(fileName)) {
             DEBUG_PRINT("Deleting settings for ");DEBUG_PRINT(fileName);DEBUG_PRINTLN(".");
             SPIFFS.remove(fileName);
@@ -803,9 +817,8 @@ void deleteSettings() {
 }
 
 void loadState(HeaterItem& heaterItem) {
-    String fileName = "/item";
-    fileName += String(heaterItem.getAddress());
-
+    String fileName;
+    getItemFilename(heaterItem.getAddress(), fileName);
     if(!SPIFFS.exists(fileName)) {
         setDefaults(heaterItem);
     }
