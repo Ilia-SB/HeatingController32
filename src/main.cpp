@@ -398,10 +398,11 @@ bool mqttConnect() {
     ISR_Timer.enable(TIMER_NUM_MQTT_LED_BLINK);
     mqttClient.setServer(settings.mqttUrl.c_str(), settings.mqttPort);
     mqttClient.setCallback(mqttCallback);
-    if (mqttClient.connect(HOSTNAME)) {
+    if (mqttClient.connect(HOSTNAME, LWT_TOPIC, 0, true, "Offline")) {
         DEBUG_PRINTLN("MQTT connected");
         mqttClient.subscribe(COMMAND_TOPIC.c_str());
         mqttClient.subscribe(ENERGY_METER_TOPIC);
+        mqttClient.publish(LWT_TOPIC, "Online", true);
         ISR_Timer.disable(TIMER_NUM_MQTT_LED_BLINK);
         mqttLed(HIGH);
         if (heatersInitialized)
