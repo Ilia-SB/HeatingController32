@@ -126,6 +126,7 @@ void loadSettings(Settings&);
 void saveState(HeaterItem&);
 void loadState(HeaterItem&);
 void processSettingsForm(AsyncWebServerRequest*);
+void processControlForm(AsyncWebServerRequest*);
 void reportHeatersState(void);
 void reportHeaterState(HeaterItem&);
 void reportTemperatures(void);
@@ -296,7 +297,8 @@ void processCommand(char* item, char* command, char* payload) {
         heater->setIsAuto(payload);
     }
     if (strcasecmp(command, IS_ON) == 0) {
-        heater->setWantsOn(payload);
+        if (heater->getIsAuto() == false)
+            heater->setWantsOn(payload);
     }
     if (strcasecmp(command, PRIORITY) == 0) {
         heater->setPriority(payload);
@@ -545,8 +547,47 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += String(heaterItems[i].getPowerConsumption());
             retValue += "\"></td></tr><tr><td class=\"name\">Priority</td><td class=\"value\"><input type=\"text\" name=\"priority\" value=\"";
             retValue += String(heaterItems[i].getPriority());
+            retValue += "\"></td></tr><tr><td class=\"name\">Temperature adjust</td><td class=\"value\"><input type=\"text\" name=\"temperatureAdjust\" value=\"";
+            retValue += String(heaterItems[i].getTemperatureAdjust());
             retValue += "\"></td></tr></tbody></table><button name=\"save\" type=\"submit\" class=\"bgrn\">Save</button></div></fieldset></form>";
         }
+    }
+    if (placeholder.equals("ITEMS_CONTROL")) {
+        for (uint8_t i=0; i< NUMBER_OF_HEATERS; i++){
+            String itemNum;
+            if (i < 10)
+                itemNum += "0";
+            itemNum += String(i);
+
+            retValue += "<p onclick=\"showHideItem('";
+            retValue += itemNum;
+            retValue += "')\" class=\"item\">";
+            retValue += heaterItems[i].getName();
+            retValue += "</p><form style=\"color:#eaeaea;\" method=\"post\" action=\"/control\"><fieldset id=\"item_";
+            retValue += itemNum;
+            retValue += "\" style=\"display: none;\">";
+            retValue += "<input type=\"hidden\" name=\"item\" value=\"";
+            retValue += String(i);
+            retValue += "\">";
+            retValue += "<div style=\"color:#eaeaea;text-align: left;\"><table><tbody>";
+            retValue += "<tr><td class=\"name\">Current temperature</td><td class=\"name\"><p>";
+            retValue += String(heaterItems[i].getTemperature());
+            retValue += "</p></td></tr>";
+            retValue += "<tr><td class=\"name\">Target temperature</td><td class=\"value\"><input type=\"text\" name=\"targetTemperature\" value=\"";
+            retValue += String(heaterItems[i].getTargetTemperature());
+            retValue += "\"></td></tr>";
+            retValue += "<tr><td class=\"name\">Enabled</td><td class=\"value\"><input type=\"checkbox\" name=\"isEnabled\"";
+            retValue += heaterItems[i].getIsEnabled()?" checked":"";
+            retValue += "></td></tr>";
+            retValue += "<tr><td class=\"name\">Auto</td><td class=\"value\"><input type=\"checkbox\" name=\"isAuto\"";
+            retValue += heaterItems[i].getIsAuto()?" checked":"";
+            retValue += "></td></tr>";
+            retValue += "<tr><td class=\"name\">On</td><td class=\"value\"><input type=\"checkbox\" name=\"isOn\"";
+            retValue += heaterItems[i].getActualState()?" checked":"";
+            retValue += "></td></tr>";
+            retValue += "</tbody></table><button name=\"save\" type=\"submit\" class=\"bgrn\">Save</button></div></fieldset></form>";
+        }
+        return retValue;
     }
     if (placeholder.equals("GLOBAL_SETTINGS")) {
         retValue += "<tr><td class=\"name\">Hysteresis</td><td class=\"value\"><input type=\"text\" name=\"hysteresis\" value=\"";
@@ -889,7 +930,7 @@ void processSettingsForm(AsyncWebServerRequest* request) {
         return;
     }
 
-    //items
+    //####################################################### items #######################################################
     uint8_t itemNo=0;
     if (request->hasParam("item", true)) {
         String var = request->getParam("item", true)->value();
@@ -923,9 +964,50 @@ void processSettingsForm(AsyncWebServerRequest* request) {
     if (request->hasParam("priority", true)) {
         heaterItems[itemNo].setPriority((uint8_t)(request->getParam("priority", true)->value().toInt()));
     }
+    if (request->hasParam("temperatureAdjust", true)) {
+        heaterItems[itemNo].setTemperatureAdjust(request->getParam("temperatureAdjust", true)->value().c_str());
+    }
 
     saveState(heaterItems[itemNo]);
     request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
+    newDataAvailable = true;
+}
+
+void processControlForm(AsyncWebServerRequest* request) {
+    uint8_t itemNo = 0;
+    if (request->hasParam("item", true)) {
+        String var = request->getParam("item", true)->value();
+        itemNo = (uint8_t)(var.toInt());
+    }
+    else {
+        return;
+    }
+
+    if (request->hasParam("targetTemperature", true)) {
+        heaterItems[itemNo].setTargetTemperature(request->getParam("targetTemperature", true)->value().c_str());
+    }
+    if (request->hasParam("isEnabled", true)) {
+        heaterItems[itemNo].setIsEnabled(true);
+    } else {
+        heaterItems[itemNo].setIsEnabled(false);
+    }
+    if (request->hasParam("isAuto", true)) {
+        heaterItems[itemNo].setIsAuto(true);
+    } else {
+        heaterItems[itemNo].setIsAuto(false);
+    }
+    if (request->hasParam("isOn", true)) {
+        if (heaterItems[itemNo].getIsAuto() == false) {
+            heaterItems[itemNo].setWantsOn(true);
+        }
+    } else {
+        if (heaterItems[itemNo].getIsAuto() == false) {
+            heaterItems[itemNo].setWantsOn(false);
+        }
+    }
+
+    saveState(heaterItems[itemNo]);
+    request->send(SPIFFS, "/control.html", String(), false, webServerPlaceholderProcessor);
     newDataAvailable = true;
 }
 
@@ -1053,6 +1135,7 @@ void processHeaters() {
         //manual heaters
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
+            DEBUG_PRINT("  Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" wantsOn: ");DEBUG_PRINT(heater->getWantsOn()?"true":"false");DEBUG_PRINT(" actualState: ");DEBUG_PRINTLN(heater->getActualState()?"On":"Off");
             if (heater->getActualState() == true && heater->getWantsOn() == false) {
                 heater->setActualState(false);
                 availablePower += heater->getPowerConsumption();
@@ -1062,7 +1145,7 @@ void processHeaters() {
         //auto heaters
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
-            DEBUG_PRINT("   ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" temp: ");DEBUG_PRINT(heater->getTemperature());DEBUG_PRINT(" targetTemp: ");DEBUG_PRINT(heater->getTargetTemperature());
+            DEBUG_PRINT("  ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" temp: ");DEBUG_PRINT(heater->getTemperature());DEBUG_PRINT(" targetTemp: ");DEBUG_PRINT(heater->getTargetTemperature());
             DEBUG_PRINT(" delta: ");DEBUG_PRINT(heater->getDelta());DEBUG_PRINT(" hyst: ");DEBUG_PRINT(heater->getHysteresis());DEBUG_PRINT(" state: ");DEBUG_PRINT(heater->getActualState()?"ON":"OFF");
             if (heater->getActualState() == true && heater->getWantsOn() == false) {
                 heater->setActualState(false);
@@ -1116,6 +1199,7 @@ void processHeaters() {
         //manual heaters
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
+            DEBUG_PRINT("  Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" wantsOn: ");DEBUG_PRINT(heater->getWantsOn()?"true":"false");DEBUG_PRINT(" actualState: ");DEBUG_PRINTLN(heater->getActualState()?"On":"Off");
             if (heater->getWantsOn() == true && heater->getActualState() == false) {
                 if (heater->getPowerConsumption() < availablePower) {
                     heater->setActualState(true);
@@ -1129,7 +1213,7 @@ void processHeaters() {
         //auto heaters
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
-            DEBUG_PRINT("   ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" temp: ");DEBUG_PRINT(heater->getTemperature());DEBUG_PRINT(" targetTemp: ");DEBUG_PRINT(heater->getTargetTemperature());
+            DEBUG_PRINT("  ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" temp: ");DEBUG_PRINT(heater->getTemperature());DEBUG_PRINT(" targetTemp: ");DEBUG_PRINT(heater->getTargetTemperature());
             DEBUG_PRINT(" delta: ");DEBUG_PRINT(heater->getDelta());DEBUG_PRINT(" hyst: ");DEBUG_PRINT(heater->getHysteresis());DEBUG_PRINT(" state: ");DEBUG_PRINT(heater->getActualState()?"ON":"OFF");
             if (heater->getWantsOn() == true && heater->getActualState() == false) {
                 if (heater->getPowerConsumption() < availablePower) {
@@ -1267,6 +1351,9 @@ void setup()
     server.on("/settings", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     });
+    server.on("/control", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/control.html", String(), false, webServerPlaceholderProcessor);
+    });
     server.on("/backup", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/backup.html", String(), false, webServerPlaceholderProcessor);
     });
@@ -1274,6 +1361,7 @@ void setup()
         request->send(SPIFFS, "/rebooting.html", "text/html");
     });
     server.on("/settings", HTTP_POST, processSettingsForm);
+    server.on("/control", HTTP_POST, processControlForm);
 
     server.on("/files", HTTP_GET, [](AsyncWebServerRequest* request) {
         String html;
