@@ -581,14 +581,16 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             String fileName;
             getItemFilename(i, fileName);
             if (SPIFFS.exists(fileName)) {
-                retValue += "<li><label><input type=\"checkbox\" data-url=\"";
+                retValue += "<label><p style=\"line-height: 1.8;\"><input type=\"checkbox\" data-url=\"";
                 retValue += fileName;
                 retValue += "\" checked>";
                 retValue += fileName;
-                retValue += " (";
-                retValue += heaterItems[i].getName();
-                retValue += " )";
-                retValue += "</label></li>";
+                if (heaterItems[i].getName().length() > 0) {
+                    retValue += " (";
+                    retValue += heaterItems[i].getName();
+                    retValue += ")";
+                }
+                retValue += "</p></label>";
             }
         }
     }

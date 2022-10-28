@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <head>
-    <title>Backup</title>
+    <meta http-equiv=Content-Type content=text/html; charset=UTF-8>
+    <link rel="stylesheet" href="/default.css">
+    <title>HeatingController32 settings backup</title>
     <script type="text/javascript" src="/filesaver.min.js"></script>
     <script type="text/javascript" src="/jquery-3.6.1.min.js"></script>
     <script type="text/javascript" src="/jszip.min.js"></script>
@@ -11,20 +13,27 @@
     -->
 </head>
 <body>
-    <div>
-        <h3>Backup settings</h3>
-        <form action="#" id="download_form">
-            <ul>
-                %BACKUP_ITEM_FILE%
-                <li>
-                    <label>
-                        <input type="checkbox" data-url="/settings" checked>General settings
-                    </label>
-                </li>
-            </ul>
-            <button type="submit" class="btn btn-primary">Download</button>
-        </form>
+    <div style="display:inline-block; min-width:340px">
+        <div style="color:#eaeaea;">
+            <h3>Backup settings</h3>
+        </div>
+        <div style="color:#eaeaea;text-align: left;">
+            <fieldset>
+                <form id="download_form" style="color:#eaeaea;" method="post" action="/backup">
+                    <ul>
+                        %BACKUP_ITEM_FILE%
+                        <label>
+                            <p style="line-height: 1.8;">
+                                <input type="checkbox" data-url="/settings" checked>Global settings
+                            </p>
+                        </label>
+                    </ul>
+                    <button type="submit" class="bgrn">Download</button>
+                </form>
+            </fieldset>
+        </div>
     </div>
+    <p class="build-no">Build: %BUILD_NO%</p>
     <script>
         jQuery(function ($) {
             "use strict";
