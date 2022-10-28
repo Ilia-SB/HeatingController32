@@ -1241,21 +1241,6 @@ void setup()
     }
     DEBUG_PRINTLN();
 
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
-        String html;
-        File root = SPIFFS.open("/");
-        File file = root.openNextFile();
- 
-        while(file){
-            html += "<a href=\"";
-            html += file.name();
-            html += "\">";
-            html += file.name();
-            html += "</a><br>";
-            file = root.openNextFile();
-        }
-        request->send(200, "text/html", html);
-    });
     server.on("/default.css", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/default.css", "text/css");
     });
@@ -1274,6 +1259,9 @@ void setup()
     server.on("/filesaver.min.js", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/filesaver.min.js", "text/javascript");
     });
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/main.html", String(), false, webServerPlaceholderProcessor);
+    });
     server.on("/settings", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     });
@@ -1284,6 +1272,22 @@ void setup()
         request->send(SPIFFS, "/rebooting.html", "text/html");
     });
     server.on("/settings", HTTP_POST, processSettingsForm);
+
+    server.on("/files", HTTP_GET, [](AsyncWebServerRequest* request) {
+        String html;
+        File root = SPIFFS.open("/");
+        File file = root.openNextFile();
+ 
+        while(file){
+            html += "<a href=\"";
+            html += file.name();
+            html += "\">";
+            html += file.name();
+            html += "</a><br>";
+            file = root.openNextFile();
+        }
+        request->send(200, "text/html", html);
+    });
 
     server.onNotFound([](AsyncWebServerRequest* request) {
         int pos = request->url().lastIndexOf("/");
