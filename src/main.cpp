@@ -398,10 +398,11 @@ bool mqttConnect() {
     ISR_Timer.enable(TIMER_NUM_MQTT_LED_BLINK);
     mqttClient.setServer(settings.mqttUrl.c_str(), settings.mqttPort);
     mqttClient.setCallback(mqttCallback);
-    if (mqttClient.connect(HOSTNAME)) {
+    if (mqttClient.connect(HOSTNAME, LWT_TOPIC, 0, true, "Offline")) {
         DEBUG_PRINTLN("MQTT connected");
         mqttClient.subscribe(COMMAND_TOPIC.c_str());
         mqttClient.subscribe(ENERGY_METER_TOPIC);
+        mqttClient.publish(LWT_TOPIC, "Online", true);
         ISR_Timer.disable(TIMER_NUM_MQTT_LED_BLINK);
         mqttLed(HIGH);
         if (heatersInitialized)
@@ -1242,21 +1243,6 @@ void setup()
     }
     DEBUG_PRINTLN();
 
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
-        String html;
-        File root = SPIFFS.open("/");
-        File file = root.openNextFile();
- 
-        while(file){
-            html += "<a href=\"";
-            html += file.name();
-            html += "\">";
-            html += file.name();
-            html += "</a><br>";
-            file = root.openNextFile();
-        }
-        request->send(200, "text/html", html);
-    });
     server.on("/default.css", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/default.css", "text/css");
     });
@@ -1275,6 +1261,9 @@ void setup()
     server.on("/filesaver.min.js", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/filesaver.min.js", "text/javascript");
     });
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/main.html", String(), false, webServerPlaceholderProcessor);
+    });
     server.on("/settings", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     });
@@ -1285,6 +1274,22 @@ void setup()
         request->send(SPIFFS, "/rebooting.html", "text/html");
     });
     server.on("/settings", HTTP_POST, processSettingsForm);
+
+    server.on("/files", HTTP_GET, [](AsyncWebServerRequest* request) {
+        String html;
+        File root = SPIFFS.open("/");
+        File file = root.openNextFile();
+ 
+        while(file){
+            html += "<a href=\"";
+            html += file.name();
+            html += "\">";
+            html += file.name();
+            html += "</a><br>";
+            file = root.openNextFile();
+        }
+        request->send(200, "text/html", html);
+    });
 
     server.onNotFound([](AsyncWebServerRequest* request) {
         int pos = request->url().lastIndexOf("/");

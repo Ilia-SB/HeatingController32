@@ -38,6 +38,7 @@ static const char* MQTT_URL = "192.168.1.3";
 static const int MQTT_PORT = 1883;
 static const String COMMAND_TOPIC = "cmnd/heating/#";
 static const char* STATUS_TOPIC = "tele/heating";
+static const char* LWT_TOPIC = "tele/heating/LWT";
 static const char* ENERGY_METER_TOPIC = "tele/energy_meter";
 static const char* ERROR_TOPIC = "error/heating";
 
