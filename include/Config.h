@@ -10,6 +10,8 @@
 #endif // !DEBUG
 #define DEBUG
 
+//#define BLINK_ONEWIRE
+
 //Pins
 #define ETHERNET_LED	14
 #define MQTT_LED		12

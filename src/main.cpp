@@ -1057,8 +1057,14 @@ void initHeaters() {
         heaterItems[i].setAddress(i);
         initHeater(heaterItems[i]);
     }
-        heatersInitialized = true;
-        reportHeatersState();
+    
+    requestTemperatures();
+    while (!flagReadTemperatures) {
+        yield();
+    }
+    readTemperatures();
+    heatersInitialized = true;
+    reportHeatersState();
 }
 
 void initHeater(HeaterItem& heater) {
@@ -1311,9 +1317,11 @@ void setup()
     sensors.begin();
     sensorsCount = sensors.getDS18Count();
     ISR_Timer.disable(TIMER_NUM_ONEWIRE_LED_BLINK);
+#ifdef BLINK_ONEWIRE
     if (sensorsCount > 0) {
         oneWireBlinkDetectedSensors(sensorsCount);
     }
+#endif
 
     DEBUG_PRINT("Detected sensors: "); DEBUG_PRINTDEC(sensorsCount); DEBUG_PRINTLN();
     for (uint8_t i = 0; i < sensorsCount; i++) {
@@ -1392,13 +1400,6 @@ void setup()
 
     //init heaterItems
     initHeaters();
-
-    requestTemperatures();
-    while (!flagReadTemperatures) {
-        yield();
-    }
-    readTemperatures();
-
 
     auto now = millis();
     while (millis()-now < 5000) {
