@@ -36,7 +36,6 @@ private:
 	byte sensorAddress[SENSOR_ADDR_LEN] = SENSOR_ADDR_UNCONFIGURED;
 	byte port = UNCONFIGURED;
 	byte phase = UNCONFIGURED;
-	byte pin;
 	boolean isAuto = false;
 	uint16_t powerConsumption = 0;
 	boolean wantsOn = false;
@@ -50,6 +49,9 @@ private:
 	float delta = 0;
 	float temperatureAdjust = 0;
 	float hysteresis = 0;
+
+	float temperatures[3];
+	uint8_t temperaturesCount = 0;
 
 	OutputCallBack outputCallback;
 	NotificationCallBack notificationCallback;

@@ -411,37 +411,34 @@ void HeaterItem::processTemperature() {
 }
 
 float HeaterItem::runningMedian(float newValue) {
-	static float values[3];
-	static uint8_t valuesCount = 0;
-
-	if (valuesCount < 3) {
-		values[valuesCount++] = newValue;
+	if (temperaturesCount < 3) {
+		temperatures[temperaturesCount++] = newValue;
 		return newValue;
 	}
 
 	//shift array left
-	memmove(&values[0], &values[1], sizeof(float) * 2);
+	memmove(&temperatures[0], &temperatures[1], sizeof(float) * 2);
 
 	//add new value
-	values[2] = newValue;
+	temperatures[2] = newValue;
 
 	//sort array
 	float tmp;	
-	if (values[0] > values[1]) {
-		tmp = values[0];
-		values[0] = values[1];
-		values[1] = tmp;
+	if (temperatures[0] > temperatures[1]) {
+		tmp = temperatures[0];
+		temperatures[0] = temperatures[1];
+		temperatures[1] = tmp;
 	}
-	if (values[0] > values[2]) {
-		tmp = values[0];
-		values[0] = values[2];
-		values[2] = tmp;
+	if (temperatures[0] > temperatures[2]) {
+		tmp = temperatures[0];
+		temperatures[0] = temperatures[2];
+		temperatures[2] = tmp;
 	}
-	if (values[1] > values[2]) {
-		tmp = values[1];
-		values[1] = values[2];
-		values[2] = tmp;
+	if (temperatures[1] > temperatures[2]) {
+		tmp = temperatures[1];
+		temperatures[1] = temperatures[2];
+		temperatures[2] = tmp;
 	}
 
-	return values[1];
+	return temperatures[1];
 }
