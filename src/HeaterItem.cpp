@@ -32,7 +32,7 @@ bool HeaterItem::operator>(const HeaterItem& c) {
 }
 
 void HeaterItem::setTemperature(float temp) {
-	temperature = temp;
+	temperature = runningMedian(temp);
 	processTemperature();
 }
 
@@ -408,4 +408,40 @@ void HeaterItem::processTemperature() {
 			wantsOn = false;
 		}
 	}
+}
+
+float HeaterItem::runningMedian(float newValue) {
+	static float values[3];
+	static uint8_t valuesCount = 0;
+
+	if (valuesCount < 3) {
+		values[valuesCount++] = newValue;
+		return newValue;
+	}
+
+	//shift array left
+	memmove(&values[0], &values[1], sizeof(float) * 2);
+
+	//add new value
+	values[2] = newValue;
+
+	//sort array
+	float tmp;	
+	if (values[0] > values[1]) {
+		tmp = values[0];
+		values[0] = values[1];
+		values[1] = tmp;
+	}
+	if (values[0] > values[2]) {
+		tmp = values[0];
+		values[0] = values[2];
+		values[2] = tmp;
+	}
+	if (values[1] > values[2]) {
+		tmp = values[1];
+		values[1] = values[2];
+		values[2] = tmp;
+	}
+
+	return values[1];
 }
