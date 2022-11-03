@@ -675,8 +675,8 @@ void readTemperatures() {
         if (heaterItems[i].getIsConnected() == true) {
             float _temperature = sensors.getTempC(heaterItems[i].getSensorAddress());
             if ((int)_temperature != HeaterItem::SENSOR_NOT_CONNECTED && (int)_temperature != HeaterItem::SENSOR_READ_ERROR) {
-                DEBUG_PRINT(heaterItems[i].getName());DEBUG_PRINT(" : ");DEBUG_PRINTLN(_temperature);
                 heaterItems[i].setTemperature(_temperature);
+                DEBUG_PRINT(heaterItems[i].getName());DEBUG_PRINT(": ");DEBUG_PRINTLN(_temperature);
             } else {
                 DEBUG_PRINT("Error reading temperature for item ");DEBUG_PRINTLN(heaterItems[i].getName());
                 heaterItems[i].tempReadError();
@@ -1027,32 +1027,37 @@ void reportHeatersState() {
 }
 
 void reportHeaterState(HeaterItem& heater) {
-        //TODO: move below code to functions
-        StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
-        itemToJson(heater, doc, true);
-        String mqttTopic;
-        mqttTopic += STATUS_TOPIC;
-        mqttTopic += "/";
-        mqttTopic += heater.getSubtopic();
-        mqttTopic += "/STATE";
+    if (!heatersInitialized) {
+        return;
+    }
 
-        String mqttPayload;
-        serializeJson(doc, mqttPayload);
+    //TODO: move below code to functions
+    StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
+    itemToJson(heater, doc, true);
+    String mqttTopic;
+    mqttTopic += STATUS_TOPIC;
+    mqttTopic += "/";
+    mqttTopic += heater.getSubtopic();
+    mqttTopic += "/STATE";
 
-        uint16_t maxPayloadSize = MQTT_MAX_PACKET_SIZE - MQTT_MAX_HEADER_SIZE - 2 - mqttTopic.length();
-        if(mqttPayload.length() > maxPayloadSize) {
-            mqttClient.beginPublish(mqttTopic.c_str(), mqttPayload.length(), true);
-            for (uint16_t j=0; j<mqttPayload.length(); j++) {
-                mqttClient.write((uint8_t)(mqttPayload.c_str()[j]));
-            }
-            mqttClient.endPublish();
+    String mqttPayload;
+    serializeJson(doc, mqttPayload);
+
+    uint16_t maxPayloadSize = MQTT_MAX_PACKET_SIZE - MQTT_MAX_HEADER_SIZE - 2 - mqttTopic.length();
+    if(mqttPayload.length() > maxPayloadSize) {
+        mqttClient.beginPublish(mqttTopic.c_str(), mqttPayload.length(), true);
+        for (uint16_t j=0; j<mqttPayload.length(); j++) {
+            mqttClient.write((uint8_t)(mqttPayload.c_str()[j]));
         }
-        else {
-            mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), true);
-        }
+        mqttClient.endPublish();
+    }
+    else {
+        mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), true);
+    }
 }
 
 void initHeaters() {
+    DEBUG_PRINTLN("Initializing heaters...");
     for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
         heaterItems[i].setAddress(i);
         initHeater(heaterItems[i]);
@@ -1063,8 +1068,9 @@ void initHeaters() {
         yield();
     }
     readTemperatures();
-    heatersInitialized = true;
     reportHeatersState();
+    heatersInitialized = true;
+    DEBUG_PRINTLN("Heaters initialized");
 }
 
 void initHeater(HeaterItem& heater) {
