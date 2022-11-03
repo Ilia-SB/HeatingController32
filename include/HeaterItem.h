@@ -130,6 +130,7 @@ protected:
 private:
 	HeaterItem(const HeaterItem& c);
 	void processTemperature(void);
+	float runningMedian(float);
 }; //HeaterItem
 
 #endif
