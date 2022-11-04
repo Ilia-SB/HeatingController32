@@ -416,29 +416,34 @@ float HeaterItem::runningMedian(float newValue) {
 		return newValue;
 	}
 
+	
 	//shift array left
 	memmove(&temperatures[0], &temperatures[1], sizeof(float) * 2);
 
 	//add new value
 	temperatures[2] = newValue;
 
+	//make local copy
+	float data[3];
+	memcpy(data, temperatures, sizeof(float) * 3);
+	
 	//sort array
 	float tmp;	
-	if (temperatures[0] > temperatures[1]) {
-		tmp = temperatures[0];
-		temperatures[0] = temperatures[1];
-		temperatures[1] = tmp;
+	if (data[0] > data[1]) {
+		tmp = data[0];
+		data[0] = data[1];
+		data[1] = tmp;
 	}
-	if (temperatures[0] > temperatures[2]) {
-		tmp = temperatures[0];
-		temperatures[0] = temperatures[2];
-		temperatures[2] = tmp;
+	if (data[0] > data[2]) {
+		tmp = data[0];
+		data[0] = data[2];
+		data[2] = tmp;
 	}
-	if (temperatures[1] > temperatures[2]) {
-		tmp = temperatures[1];
-		temperatures[1] = temperatures[2];
-		temperatures[2] = tmp;
+	if (data[1] > data[2]) {
+		tmp = data[1];
+		data[1] = data[2];
+		data[2] = tmp;
 	}
 
-	return temperatures[1];
+	return data[1];
 }
