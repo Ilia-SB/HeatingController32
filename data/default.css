@@ -1,9 +1,19 @@
 html {
     height: 100%;
 }
-div, fieldset, input, select {
-    padding: 5px;
+div, fieldset, select {
+    padding: 5px 0;
     font-size: 1em;
+}
+    .spacer {
+        font-size: 0;
+        height: 10px;
+        line-height: 0;
+    }
+
+input, select {
+    padding: 5px;
+    font-size: 0.8em;
 }
 
 fieldset {
@@ -20,7 +30,42 @@ p {
         text-align: right;
         font-size: 10px
     }
-    .item {border:0;border-radius:0.3rem;background:#1fa3ec;color:#faffff;line-height:2.4rem;font-size:1.2rem;width:100%;-webkit-transition-duration:0.4s;transition-duration:0.4s;cursor:pointer;}
+    .item {
+        border:0;
+        border-radius:0.3rem;
+        background:#1fa3ec;
+        color:#faffff;
+        line-height:2.4rem;
+        font-size:1.2rem;
+        width:100%;
+        -webkit-transition-duration:0.4s;
+        transition-duration:0.4s;
+        cursor:pointer;
+        margin: 0.5em 0;
+    }
+    .item-main {
+        border:0;
+        border-radius:0.3rem;
+        background:#177bb1;
+        color:#faffff;
+        line-height:2.4rem;
+        font-size:1.2rem;
+        width:100%;
+        -webkit-transition-duration:0.4s;
+        transition-duration:0.4s;
+        cursor:pointer;
+        margin: 0.5em 0
+    }
+    .main {
+        font-size: 1.2rem;
+        line-height: 100%;
+        margin: 0 0 0.5em;
+    }
+    .details {
+        font-size: x-small;
+        line-height: 100%;
+        margin: 0 0;
+    }
 
 a:link, a:visited, a:hover, a:active {
     color: #faffff;
@@ -75,8 +120,8 @@ body {
 td {
     padding: 0px;
 }
-    .name{width: 155px;}
-    .value{width: 155px;}
+    .name{width: 125px;}
+    .value{width: 185px;}
 
 button {
     border: 0;
@@ -85,10 +130,12 @@ button {
     color: #faffff;
     line-height: 2.4rem;
     font-size: 1.2rem;
-    width: 100%;
+    width: 95%;
     -webkit-transition-duration: 0.4s;
     transition-duration: 0.4s;
     cursor: pointer;
+    display: block;
+    margin: 10px auto 0;
 }
 
     button:hover {
@@ -137,4 +184,8 @@ a {
     max-width: 500px;
     margin:0px auto;
     flex: 1 0 auto;
+}
+
+.center {
+    margin: auto;
 }
