@@ -138,6 +138,7 @@ void processHeaters(void);
 uint16_t calculateHeatersConsumption(uint8_t);
 void sanityCheckHeater(HeaterItem&);
 void deleteSettings(void);
+void reboot(AsyncWebServerRequest*);
 
 void heaterItemOutputCallback(uint8_t, bool);
 void heaterItemNotificationCallback(HeaterItem& heater);
@@ -927,9 +928,7 @@ void processSettingsForm(AsyncWebServerRequest* request) {
             }
         }
         saveSettings(settings);
-        //TODO: fancy javascript for redirect
-        request->send(SPIFFS, "/rebooting.html");
-        flagRestartNow = true;
+        reboot(request);
         return;
     }
 
@@ -974,6 +973,12 @@ void processSettingsForm(AsyncWebServerRequest* request) {
     saveState(heaterItems[itemNo]);
     request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     newDataAvailable = true;
+}
+
+void reboot(AsyncWebServerRequest* request) {
+    //TODO: fancy javascript for redirect
+    request->send(SPIFFS, "/rebooting.html");
+    flagRestartNow = true;
 }
 
 void processControlForm(AsyncWebServerRequest* request) {
@@ -1379,6 +1384,9 @@ void setup()
     });
     server.on("/settings", HTTP_POST, processSettingsForm);
     server.on("/control", HTTP_POST, processControlForm);
+    server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest* request) {
+        reboot(request);
+    });
 
     server.on("/files", HTTP_GET, [](AsyncWebServerRequest* request) {
         String html;
