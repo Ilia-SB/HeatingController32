@@ -1114,18 +1114,25 @@ bool checkSensorConnected(HeaterItem& heater) {
     return false;
 }
 
+void processHeatersOutput(HeaterItem* heater) {
+    DEBUG_PRINT("| ");DEBUG_PRINT(heater->getName());DEBUG_PRINT("\t| ");DEBUG_PRINT(heater->getIsAuto()?"Auto  ":"Manual");DEBUG_PRINT("\t| ");DEBUG_PRINT(String(heater->getTemperature(),2));
+    DEBUG_PRINT("\t| ");DEBUG_PRINT(heater->getTargetTemperature());DEBUG_PRINT("\t| ");DEBUG_PRINT(heater->getDelta());DEBUG_PRINT("\t| ");DEBUG_PRINT(heater->getPowerConsumption());
+    DEBUG_PRINT("\t| ");DEBUG_PRINT(heater->getActualState()?"On":"Off");DEBUG_PRINT("\t| ");DEBUG_PRINT(heater->getWantsOn()?"Yes":"No");DEBUG_PRINT("\t| ");
+}
+
 void processHeaters() {
     if (flagRestartNow)
         return;
     DEBUG_PRINTLN("Processing heaters...");
     for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
+        DEBUG_PRINT("Phase "); DEBUG_PRINT(phase + 1);
         newDataAvailable = false;
         int16_t availablePower = 0;
         if (millis() - consumptionDataReceived[phase] < 2000) { //if data from the energy meter is not older than 2 sec.
-            DEBUG_PRINT("Using measured power consumption. ");
+            DEBUG_PRINT(". Using measured power consumption. ");
             availablePower = settings.consumptionLimit[phase] - currentConsumption[phase];
         } else {
-            DEBUG_PRINT("Using estimated power consumption. ");
+            DEBUG_PRINT(". Using estimated power consumption (");DEBUG_PRINT(millis() - consumptionDataReceived[phase]);DEBUG_PRINT("ms since last power reading). ")
             availablePower = settings.consumptionLimit[phase] - calculateHeatersConsumption(phase);
             if (availablePower < 0) {
                 flagEmergency = true;
@@ -1148,32 +1155,33 @@ void processHeaters() {
         HeaterItem::sortHeaters(manualHeaters, manualHeatersNum);
         HeaterItem::sortHeaters(autoHeaters, autoHeatersNum);
         
-        DEBUG_PRINT("Phase ");DEBUG_PRINT(phase+1);DEBUG_PRINT(": Available power: ");DEBUG_PRINT(availablePower);
+        DEBUG_PRINT("Available power: ");DEBUG_PRINT(availablePower);
         DEBUG_PRINT(". Auto heaters count: ");DEBUG_PRINT(autoHeatersNum);DEBUG_PRINT(", manual heaters count: ");DEBUG_PRINTLN(manualHeatersNum);
 
         //turn off
         //manual heaters
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
-            DEBUG_PRINT("  Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" wantsOn: ");DEBUG_PRINT(heater->getWantsOn()?"true":"false");DEBUG_PRINT(" actualState: ");DEBUG_PRINTLN(heater->getActualState()?"On":"Off");
+            processHeatersOutput(heater);
             if (heater->getActualState() == true && heater->getWantsOn() == false) {
                 heater->setActualState(false);
                 availablePower += heater->getPowerConsumption();
-                DEBUG_PRINT("    ***Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF by user.");
+                DEBUG_PRINT("turned OFF by user.");
             }
+            DEBUG_PRINTLN();
         }
         //auto heaters
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
-            DEBUG_PRINT("  ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" temp: ");DEBUG_PRINT(heater->getTemperature());DEBUG_PRINT(" targetTemp: ");DEBUG_PRINT(heater->getTargetTemperature());
-            DEBUG_PRINT(" delta: ");DEBUG_PRINT(heater->getDelta());DEBUG_PRINT(" hyst: ");DEBUG_PRINT(heater->getHysteresis());DEBUG_PRINT(" state: ");DEBUG_PRINT(heater->getActualState()?"ON":"OFF");
+            processHeatersOutput(heater);
             if (heater->getActualState() == true && heater->getWantsOn() == false) {
                 heater->setActualState(false);
                 availablePower += heater->getPowerConsumption();
-                DEBUG_PRINT("    ***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF. Target temp reached.");
+                DEBUG_PRINT("turned OFF. Target temp reached.");
             } else {
-                DEBUG_PRINT("    ***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" Nothing to do.");
+                DEBUG_PRINT("nothing to do.");
             }
+            DEBUG_PRINTLN();
         }
         //emergency
         if (flagEmergency) {
@@ -1188,21 +1196,25 @@ void processHeaters() {
             HeaterItem::sortHeatersByPowerConsumption(autoHeaters, autoHeatersNum);
             for (uint8_t i=autoHeatersNum; (availablePower < 0) && (i-- > 0);) {
                 HeaterItem* heater = autoHeaters[i];
+                processHeatersOutput(heater);
                 if (heater->getActualState() == true) {
                     heater->setActualState(false);
                     availablePower += heater->getPowerConsumption();
-                    DEBUG_PRINT("    ***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF. Not enough power.");
+                    DEBUG_PRINT("turned OFF. Not enough power.");
                 }
+                DEBUG_PRINTLN();
             }
             //manual heaters
             HeaterItem::sortHeatersByPowerConsumption(manualHeaters, manualHeatersNum);
             for (uint8_t i=manualHeatersNum; (availablePower < 0) && (i-- > 0);) {
                 HeaterItem* heater = manualHeaters[i];
+                processHeatersOutput(heater);
                 if (heater->getActualState() == true) {
                     heater->setActualState(false);
                     availablePower += heater->getPowerConsumption();
-                    DEBUG_PRINT("    ***Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned OFF. Not enough power.");
+                    DEBUG_PRINT("turned OFF. Not enough power.");
                 }
+                DEBUG_PRINTLN();
             }
             emergencyHandled = millis();
             flagEmergency = false;
@@ -1219,33 +1231,34 @@ void processHeaters() {
         //manual heaters
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
-            DEBUG_PRINT("  Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" wantsOn: ");DEBUG_PRINT(heater->getWantsOn()?"true":"false");DEBUG_PRINT(" actualState: ");DEBUG_PRINTLN(heater->getActualState()?"On":"Off");
+            processHeatersOutput(heater);
             if (heater->getWantsOn() == true && heater->getActualState() == false) {
                 if (heater->getPowerConsumption() < availablePower) {
                     heater->setActualState(true);
                     availablePower -= heater->getPowerConsumption();
-                    DEBUG_PRINT("    ***Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned ON by user.");
+                    DEBUG_PRINT("turned ON by user.");
                 } else {
-                    DEBUG_PRINT("    ***Manual heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" failed to turn ON. Not enough power.");
+                    DEBUG_PRINT("failed to turn ON. Not enough power.");
                 }
             }
+            DEBUG_PRINTLN();
         }
         //auto heaters
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
-            DEBUG_PRINT("  ");DEBUG_PRINT(heater->getName());DEBUG_PRINT(" temp: ");DEBUG_PRINT(heater->getTemperature());DEBUG_PRINT(" targetTemp: ");DEBUG_PRINT(heater->getTargetTemperature());
-            DEBUG_PRINT(" delta: ");DEBUG_PRINT(heater->getDelta());DEBUG_PRINT(" hyst: ");DEBUG_PRINT(heater->getHysteresis());DEBUG_PRINT(" state: ");DEBUG_PRINT(heater->getActualState()?"ON":"OFF");
+            processHeatersOutput(heater);
             if (heater->getWantsOn() == true && heater->getActualState() == false) {
                 if (heater->getPowerConsumption() < availablePower) {
                     heater->setActualState(true);
                     availablePower -= heater->getPowerConsumption();
-                    DEBUG_PRINT("    ***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" turned ON.");
+                    DEBUG_PRINT("turned ON.");
                 } else {
-                    DEBUG_PRINT("    ***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" failed to turn ON. Not enough power.");
+                    DEBUG_PRINT("failed to turn ON. Not enough power.");
                 }
             } else {
-                DEBUG_PRINT("    ***Auto heater ");DEBUG_PRINT(heater->getName());DEBUG_PRINTLN(" Nothing to do.");
+                DEBUG_PRINT("Nothing to do.");
             }
+            DEBUG_PRINTLN();
         }
     }
 }
