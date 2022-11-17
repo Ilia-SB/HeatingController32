@@ -1128,7 +1128,7 @@ void processHeaters() {
         DEBUG_PRINT("Phase "); DEBUG_PRINT(phase + 1);
         newDataAvailable = false;
         int16_t availablePower = 0;
-        if (millis() - consumptionDataReceived[phase] < 2000) { //if data from the energy meter is not older than 2 sec.
+        if (millis() - consumptionDataReceived[phase] < 5000) { //if data from the energy meter is not older than 5 sec.
             DEBUG_PRINT(". Using measured power consumption. ");
             availablePower = settings.consumptionLimit[phase] - currentConsumption[phase];
         } else {
