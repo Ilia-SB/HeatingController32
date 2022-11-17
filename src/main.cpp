@@ -1,6 +1,8 @@
 /*
     Ethernet:   http://arduino.ru/forum/apparatnye-voprosy/podklyuchenie-ethernet-lan8720-i-esp32-devkit-c-esp32-devkit-v1
                 https://sautter.com/blog/ethernet-on-esp32-using-lan8720/
+
+    Xiaomi BLE thermometer: https://github.com/AlexNS/xiaomi-temperature-example/blob/master/blescan.ino
 */
 
 #include <version.h>
