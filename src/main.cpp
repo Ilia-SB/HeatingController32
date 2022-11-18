@@ -1160,6 +1160,7 @@ void processHeaters() {
 
         //turn off
         //manual heaters
+        DEBUG_PRINTLN("Manual -> Off");
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
             processHeatersOutput(heater);
@@ -1171,6 +1172,7 @@ void processHeaters() {
             DEBUG_PRINTLN();
         }
         //auto heaters
+        DEBUG_PRINTLN("Auto -> Off");
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
             processHeatersOutput(heater);
@@ -1193,6 +1195,7 @@ void processHeaters() {
             }
             */
             //auto heaters
+            DEBUG_PRINTLN("Emergency auto -> Off");
             HeaterItem::sortHeatersByPowerConsumption(autoHeaters, autoHeatersNum);
             for (uint8_t i=autoHeatersNum; (availablePower < 0) && (i-- > 0);) {
                 HeaterItem* heater = autoHeaters[i];
@@ -1205,6 +1208,7 @@ void processHeaters() {
                 DEBUG_PRINTLN();
             }
             //manual heaters
+            DEBUG_PRINTLN("Emergency manual -> Off");
             HeaterItem::sortHeatersByPowerConsumption(manualHeaters, manualHeatersNum);
             for (uint8_t i=manualHeatersNum; (availablePower < 0) && (i-- > 0);) {
                 HeaterItem* heater = manualHeaters[i];
@@ -1229,6 +1233,7 @@ void processHeaters() {
 
         //turn on
         //manual heaters
+        DEBUG_PRINTLN("Manual -> On");
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
             processHeatersOutput(heater);
@@ -1244,6 +1249,7 @@ void processHeaters() {
             DEBUG_PRINTLN();
         }
         //auto heaters
+        DEBUG_PRINTLN("Auto -> On");
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
             processHeatersOutput(heater);
@@ -1448,6 +1454,10 @@ void setup()
 void loop()
 {
     if (flagRestartNow) {
+        if (mqttClient.connected())
+            mqttClient.disconnect();
+        if (tcpClient.connected())
+            tcpClient.stop();
         auto now = millis();
         while (millis() - now < 500) {}
         ESP.restart();
