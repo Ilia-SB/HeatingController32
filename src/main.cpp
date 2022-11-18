@@ -93,11 +93,11 @@ volatile bool flagRequestTemperatures = false;
 volatile bool flagReadTemperatures = false;
 volatile bool newDataAvailable = false;
 
-bool flagEmergency = false;
+bool flagEmergency[NUMBER_OF_PHASES] = {false,false,false};
 
 bool consumptionDataRecieved = false;
 unsigned long consumptionDataReceived[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
-unsigned long emergencyHandled = 0;
+unsigned long emergencyHandled[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
 
 bool heatersInitialized = false;
 
@@ -228,9 +228,9 @@ void getConsumptionData(const char* rawData) {
             consumptionDataReceived[phase] = millis();
             //DEBUG_PRINTLN(currentConsumption[phase]);
             if (currentConsumption[phase] > settings.consumptionLimit[phase]) {
-                flagEmergency = true;
+                flagEmergency[phase] = true;
             } else {
-                flagEmergency = false;
+                flagEmergency[phase] = false;
             }
         }
     }
@@ -1128,14 +1128,18 @@ void processHeaters() {
         DEBUG_PRINT("Phase "); DEBUG_PRINT(phase + 1);
         newDataAvailable = false;
         int16_t availablePower = 0;
+        bool usingEstimatedConsumption = false;
         if (millis() - consumptionDataReceived[phase] < 5000) { //if data from the energy meter is not older than 5 sec.
             DEBUG_PRINT(". Using measured power consumption. ");
             availablePower = settings.consumptionLimit[phase] - currentConsumption[phase];
+            DEBUG_PRINT("Available power: ");DEBUG_PRINT(availablePower);DEBUG_PRINT(" = ");DEBUG_PRINT(settings.consumptionLimit[phase]);DEBUG_PRINT(" - ");DEBUG_PRINT(currentConsumption[phase]);
         } else {
             DEBUG_PRINT(". Using estimated power consumption (");DEBUG_PRINT(millis() - consumptionDataReceived[phase]);DEBUG_PRINT("ms since last power reading). ")
             availablePower = settings.consumptionLimit[phase] - calculateHeatersConsumption(phase);
+            usingEstimatedConsumption = true;
+            DEBUG_PRINT("Available power: ");DEBUG_PRINT(availablePower);DEBUG_PRINT(" = ");DEBUG_PRINT(settings.consumptionLimit[phase]);DEBUG_PRINT(" - ");DEBUG_PRINT(calculateHeatersConsumption(phase));
             if (availablePower < 0) {
-                flagEmergency = true;
+                flagEmergency[phase] = true;
             }
         }
 
@@ -1155,7 +1159,6 @@ void processHeaters() {
         HeaterItem::sortHeaters(manualHeaters, manualHeatersNum);
         HeaterItem::sortHeaters(autoHeaters, autoHeatersNum);
         
-        DEBUG_PRINT("Available power: ");DEBUG_PRINT(availablePower);
         DEBUG_PRINT(". Auto heaters count: ");DEBUG_PRINT(autoHeatersNum);DEBUG_PRINT(", manual heaters count: ");DEBUG_PRINTLN(manualHeatersNum);
 
         //turn off
@@ -1186,14 +1189,18 @@ void processHeaters() {
             DEBUG_PRINTLN();
         }
         //emergency
-        if (flagEmergency) {
+        if (flagEmergency[phase]) {
             DEBUG_PRINTLN("Phase is in emergency state");
             /*
-            if (millis() - emergencyHandled < 1000) {
-                DEBUG_PRINTLN("   Emergency last handled less than 1000ms ago. Not taking actions.");
-                return;
+            if (usingEstimatedConsumption == false) {
+                if (consumptionDataReceived[phase] < emergencyHandled[phase]) {
+                    DEBUG_PRINTLN("No new consumption data received since last emergency. Not taking actions.");
+                    flagEmergency[phase] = false;
+                    return;
+                }
             }
             */
+
             //auto heaters
             DEBUG_PRINTLN("Emergency auto -> Off");
             HeaterItem::sortHeatersByPowerConsumption(autoHeaters, autoHeatersNum);
@@ -1220,10 +1227,10 @@ void processHeaters() {
                 }
                 DEBUG_PRINTLN();
             }
-            emergencyHandled = millis();
-            flagEmergency = false;
+            emergencyHandled[phase] = millis();
+            flagEmergency[phase] = false;
             DEBUG_PRINT("Emergency handled. Available power: ");DEBUG_PRINTLN(availablePower);
-            continue;
+            //continue;
         }
 
         if (availablePower < 0) {
@@ -1474,9 +1481,10 @@ void loop()
         tcpConnect();
     }
 */
-
-    if (flagEmergency) {
-        processHeaters();
+    for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
+        if (flagEmergency[i]) {
+            processHeaters();
+        }
     }
 
     if (flagRequestTemperatures) {
