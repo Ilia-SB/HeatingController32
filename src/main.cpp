@@ -134,6 +134,7 @@ void getConsumptionData(const char*);
 void initHeaters(void);
 void initHeater(HeaterItem& heater);
 bool checkSensorConnected(HeaterItem& heater);
+bool checkSensorConfigured(DeviceAddress* sensor);
 void processHeaters(void);
 uint16_t calculateHeatersConsumption(uint8_t);
 void sanityCheckHeater(HeaterItem&);
@@ -640,6 +641,26 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             }
         }
     }
+    if (placeholder.equals("UNCONFIGURED")) {
+        for (uint8_t i=0; i<unconfiguredSesorsCount; i++) {
+            String sensor;
+            byteArrayToHexString(*unconfiguredSensors[i], SENSOR_ADDR_LEN, sensor);
+            retValue += "<li>";
+            retValue += sensor;
+            retValue += "</li>";
+        }
+    }
+    if (placeholder.equals("UNCONNECTED")) {
+        for (uint8_t i=0; i<unconnectedSensorsCount; i++) {
+            String sensor;
+            byteArrayToHexString(unconnectedSensors[i]->getSensorAddress(), SENSOR_ADDR_LEN, sensor);
+            retValue += "<li>";
+            retValue += sensor;
+            retValue += " (";
+            retValue += unconnectedSensors[i]->getName();
+            retValue += ")</li>";
+        }
+    }
     return retValue;
 }
 
@@ -1110,7 +1131,17 @@ bool checkSensorConnected(HeaterItem& heater) {
             return true;
         }
     }
-    unconnectedSensors[unconfiguredSesorsCount++] = &heater;
+    unconnectedSensors[unconnectedSensorsCount++] = &heater;
+    return false;
+}
+
+bool checkSensorConfigured(DeviceAddress* sensor) {
+    for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
+        if (compareArrays(heaterItems[i].getSensorAddress(), *sensor, SENSOR_ADDR_LEN)) {
+            return true;
+        }
+    }
+    unconfiguredSensors[unconfiguredSesorsCount++] = sensor;
     return false;
 }
 
@@ -1371,7 +1402,8 @@ void setup()
         DEBUG_PRINT(sensorAddress);
         DEBUG_PRINT(" : ");
         temperatures[i] = sensors.getTempC(sensorAddresses[i]);
-        DEBUG_PRINT(temperatures[i]); DEBUG_PRINTLN();
+        DEBUG_PRINT(temperatures[i]);
+        DEBUG_PRINTLN();
     }
     DEBUG_PRINTLN();
 
@@ -1401,6 +1433,9 @@ void setup()
     });
     server.on("/control", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/control.html", String(), false, webServerPlaceholderProcessor);
+    });
+    server.on("/sensors", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/sensors.html", String(), false, webServerPlaceholderProcessor);
     });
     server.on("/backup", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(SPIFFS, "/backup.html", String(), false, webServerPlaceholderProcessor);
@@ -1442,7 +1477,16 @@ void setup()
     mqttConnect();
 
     //init heaterItems
-    initHeaters();
+    initHeaters(); //will also fill unconnected sensors
+    for (uint8_t i=0; i<sensorsCount; i++) {
+        if (!checkSensorConfigured(&sensorAddresses[i])) {
+            String sensor;
+            byteArrayToHexString(sensorAddresses[i], SENSOR_ADDR_LEN, sensor);
+            DEBUG_PRINT("Sensor ");
+            DEBUG_PRINT(sensor);
+            DEBUG_PRINTLN(" is connected but not configured.");
+        }
+    }
 
     auto now = millis();
     while (millis()-now < 5000) {
