@@ -320,6 +320,9 @@ void processCommand(char* item, char* command, char* payload) {
     if (strcasecmp(command, TEMPERATURE_ADJUST) == 0) {
         heater->setTemperatureAdjust(payload);
     }
+    if (strcasecmp(command, AUX_ADJUST) == 0) {
+        heater->setAuxAdjust(payload);
+    }
     if (strcasecmp(command, CONSUMPTION) == 0) {
         heater->setPowerConsumption(payload);
     }
@@ -570,7 +573,9 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += "</span></p><p class=\"details\">";
             retValue += heaterItems[i].getIsEnabled()?"Enabled | ":"Disabled | ";
             retValue += heaterItems[i].getIsAuto()?"Auto | ":"Manual | ";
-            retValue += heaterItems[i].getActualState()?"On":"Off";
+            retValue += heaterItems[i].getActualState()?"On | ":"Off | ";
+            retValue += "Aux: ";
+            retValue += String(heaterItems[i].getAuxAdjust());
             retValue += "</p></div><form style=\"color:#eaeaea;\" method=\"post\" action=\"/control\"><fieldset id=\"item_";
             retValue += itemNum;
             retValue += "\" style=\"display: none;\">";
@@ -750,6 +755,7 @@ void setDefaults(HeaterItem& heaterItem) {
     heaterItem.setSubtopic("item_" + addr);
     heaterItem.setTargetTemperature(5.0f);
     heaterItem.setTemperatureAdjust(0.0f);
+    heaterItem.setAuxAdjust(0.0f);
 }
 
 void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& doc, bool forReport) {
@@ -782,6 +788,7 @@ void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& 
     doc["targetTemperature"] = heaterItem.getTargetTemperature();
     doc["temperatureAdjust"] = heaterItem.getTemperatureAdjust();
     if (forReport)
+        doc["auxAdjust"] = heaterItem.getAuxAdjust();
         doc["temperature"] = heaterItem.getTemperature();
 }
 

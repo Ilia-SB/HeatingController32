@@ -37,7 +37,7 @@ void HeaterItem::setTemperature(float temp) {
 }
 
 float HeaterItem::getTemperature() {
-	return temperature + temperatureAdjust;
+	return temperature + temperatureAdjust + auxAdjust;
 }
 
 //void HeaterItem::getTemperatureBytes(byte* array) {
@@ -79,6 +79,21 @@ void HeaterItem::getTemperatureAdjustBytes(byte* array) {
 	}
 	array[1] = abs(temperatureAdjust);
 	array[2] = abs(temperatureAdjust) * 100 - array[1] * 100;
+}
+
+void HeaterItem::setAuxAdjust(const float adjust) {
+	auxAdjust = adjust;
+	processTemperature();
+}
+
+float HeaterItem::getAuxAdjust() {
+	return auxAdjust;
+}
+
+bool HeaterItem::setAuxAdjust(const char* val) {
+	float _auxAdjust = strtof(val, nullptr);
+	setAuxAdjust(_auxAdjust);
+	return true;
 }
 
 float HeaterItem::getDelta() {

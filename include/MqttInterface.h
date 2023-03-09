@@ -12,6 +12,7 @@
 #define SENSOR						"sensor"
 #define PORT						"port"
 #define TEMPERATURE_ADJUST			"temperatureAdjust"
+#define AUX_ADJUST                  "auxAdjust"
 #define CONSUMPTION		    		"consumption"
 #define IS_ENABLED					"isEnabled"
 #define PHASE                       "phase"

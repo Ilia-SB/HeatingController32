@@ -48,6 +48,7 @@ private:
 	float targetTemperature = 0;
 	float delta = 0;
 	float temperatureAdjust = 0;
+	float auxAdjust = 0;
 	float hysteresis = 0;
 
 	float temperatures[3];
@@ -76,6 +77,9 @@ public:
 	void setTemperatureAdjust(const float temp);
 	float getTemperatureAdjust();
 	void getTemperatureAdjustBytes(byte* array);
+	void setAuxAdjust(const float tempadjust);
+	bool setAuxAdjust(const char* val);
+	float getAuxAdjust();
 	float getDelta();
 	void getAddressString(String& string, const char* format);
 	void setIsAuto(const bool b);
