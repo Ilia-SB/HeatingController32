@@ -32,12 +32,12 @@ bool HeaterItem::operator>(const HeaterItem& c) {
 }
 
 void HeaterItem::setTemperature(float temp) {
-	temperature = runningMedian(temp);
+	sensorTemperature = runningMedian(temp);
 	processTemperature();
 }
 
 float HeaterItem::getTemperature() {
-	return temperature + temperatureAdjust + auxAdjust;
+	return sensorTemperature + temperatureAdjust + auxAdjust;
 }
 
 //void HeaterItem::getTemperatureBytes(byte* array) {
@@ -51,6 +51,10 @@ float HeaterItem::getTemperature() {
 //	array[1] = abs(temp);
 //	array[2] = abs(temp) * 100 - array[1] * 100;
 //}
+
+float HeaterItem::getSensorTemperature() {
+	return sensorTemperature;
+}
 
 void HeaterItem::setTargetTemperature(const float temp) {
 	targetTemperature = temp;

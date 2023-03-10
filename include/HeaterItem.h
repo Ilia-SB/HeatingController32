@@ -44,7 +44,7 @@ private:
 	boolean actualState = false;
 	uint8_t tempReadErrors = 0;
 
-	float temperature = 0;
+	float sensorTemperature = 0;
 	float targetTemperature = 0;
 	float delta = 0;
 	float temperatureAdjust = 0;
@@ -71,6 +71,7 @@ public:
 	uint8_t getAddress(void);
 	void setTemperature(const float temp);
 	float getTemperature();
+	float getSensorTemperature();
 	//void getTemperatureBytes(byte* array);
 	void setTargetTemperature(const float temp);
 	float getTargetTemperature();

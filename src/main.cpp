@@ -574,7 +574,11 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += heaterItems[i].getIsEnabled()?"Enabled | ":"Disabled | ";
             retValue += heaterItems[i].getIsAuto()?"Auto | ":"Manual | ";
             retValue += heaterItems[i].getActualState()?"On | ":"Off | ";
-            retValue += "Aux: ";
+            retValue += "Sensor: ";
+            retValue += String(heaterItems[i].getSensorTemperature());
+            retValue += " | Adjust: ";
+            retValue += String(heaterItems[i].getTemperatureAdjust());
+            retValue += " | Aux: ";
             retValue += String(heaterItems[i].getAuxAdjust());
             retValue += "</p></div><form style=\"color:#eaeaea;\" method=\"post\" action=\"/control\"><fieldset id=\"item_";
             retValue += itemNum;
@@ -789,6 +793,7 @@ void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& 
     doc["temperatureAdjust"] = heaterItem.getTemperatureAdjust();
     if (forReport)
         doc["auxAdjust"] = heaterItem.getAuxAdjust();
+        doc["sensorTemperature"] = heaterItem.getSensorTemperature();
         doc["temperature"] = heaterItem.getTemperature();
 }
 
