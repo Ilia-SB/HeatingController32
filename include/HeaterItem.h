@@ -72,6 +72,7 @@ public:
 	void setTemperature(const float temp);
 	float getTemperature();
 	float getSensorTemperature();
+	float getRawSensorTemperature();
 	//void getTemperatureBytes(byte* array);
 	void setTargetTemperature(const float temp);
 	float getTargetTemperature();

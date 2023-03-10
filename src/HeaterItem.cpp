@@ -53,6 +53,10 @@ float HeaterItem::getTemperature() {
 //}
 
 float HeaterItem::getSensorTemperature() {
+	return sensorTemperature + temperatureAdjust;
+}
+
+float HeaterItem::getRawSensorTemperature() {
 	return sensorTemperature;
 }
 
