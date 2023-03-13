@@ -29,7 +29,7 @@ public:
 protected:
 
 private:
-	const float alpha = 0.5;
+	const float alpha = 0.4;
 	String name = "";
 	String subtopic = "";
 	uint8_t address = 0;
