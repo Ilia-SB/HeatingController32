@@ -11,7 +11,7 @@
 #include "Config.h"
 
 #define SENSOR_ADDR_LEN	8
-#define SENSOR_ADDR_UNCONFIGURED {0,0,0,0,0,0,0,0};
+#define SENSOR_ADDR_UNCONFIGURED {0,0,0,0,0,0,0,0}
 
 class HeaterItem
 {
@@ -29,6 +29,7 @@ public:
 protected:
 
 private:
+	const float alpha = 0.5;
 	String name = "";
 	String subtopic = "";
 	uint8_t address = 0;
@@ -43,6 +44,7 @@ private:
 	boolean isConnected = false;
 	boolean actualState = false;
 	uint8_t tempReadErrors = 0;
+	boolean sensorStarted = false;
 
 	float sensorTemperature = 0;
 	float targetTemperature = 0;

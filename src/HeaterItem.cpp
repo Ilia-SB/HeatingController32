@@ -32,7 +32,12 @@ bool HeaterItem::operator>(const HeaterItem& c) {
 }
 
 void HeaterItem::setTemperature(float temp) {
-	sensorTemperature = runningMedian(temp);
+	if (!sensorStarted) {
+		sensorTemperature = temp;
+		sensorStarted = true;
+	} else {
+		sensorTemperature = temp * alpha + sensorTemperature * (1.0f - alpha);
+	}
 	processTemperature();
 }
 
