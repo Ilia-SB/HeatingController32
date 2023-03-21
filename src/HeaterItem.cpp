@@ -32,30 +32,19 @@ bool HeaterItem::operator>(const HeaterItem& c) {
 }
 
 void HeaterItem::setTemperature(float temp) {
+	sensorTemperature = temp;
 	if (!sensorStarted) {
-		sensorTemperature = temp;
+		adjustedTemperature = sensorTemperature + temperatureAdjust + auxAdjust;
 		sensorStarted = true;
 	} else {
-		sensorTemperature = temp * alpha + sensorTemperature * (1.0f - alpha);
+		adjustedTemperature = (sensorTemperature + temperatureAdjust + auxAdjust) * alpha + adjustedTemperature * (1.0f - alpha);
 	}
 	processTemperature();
 }
 
 float HeaterItem::getTemperature() {
-	return sensorTemperature + temperatureAdjust + auxAdjust;
+	return adjustedTemperature;
 }
-
-//void HeaterItem::getTemperatureBytes(byte* array) {
-//	float temp = getTemperature();
-//	if (temp < 0) {
-//		array[0] = 1;
-//	}
-//	else {
-//		array[0] = 0;
-//	}
-//	array[1] = abs(temp);
-//	array[2] = abs(temp) * 100 - array[1] * 100;
-//}
 
 float HeaterItem::getSensorTemperature() {
 	return sensorTemperature + temperatureAdjust;
@@ -436,42 +425,4 @@ void HeaterItem::processTemperature() {
 			wantsOn = false;
 		}
 	}
-}
-
-float HeaterItem::runningMedian(float newValue) {
-	if (temperaturesCount < 3) {
-		temperatures[temperaturesCount++] = newValue;
-		return newValue;
-	}
-
-	
-	//shift array left
-	memmove(&temperatures[0], &temperatures[1], sizeof(float) * 2);
-
-	//add new value
-	temperatures[2] = newValue;
-
-	//make local copy
-	float data[3];
-	memcpy(data, temperatures, sizeof(float) * 3);
-	
-	//sort array
-	float tmp;	
-	if (data[0] > data[1]) {
-		tmp = data[0];
-		data[0] = data[1];
-		data[1] = tmp;
-	}
-	if (data[0] > data[2]) {
-		tmp = data[0];
-		data[0] = data[2];
-		data[2] = tmp;
-	}
-	if (data[1] > data[2]) {
-		tmp = data[1];
-		data[1] = data[2];
-		data[2] = tmp;
-	}
-
-	return data[1];
 }

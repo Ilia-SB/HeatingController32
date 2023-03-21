@@ -52,9 +52,7 @@ private:
 	float temperatureAdjust = 0;
 	float auxAdjust = 0;
 	float hysteresis = 0;
-
-	float temperatures[3];
-	uint8_t temperaturesCount = 0;
+	float adjustedTemperature = 0;
 
 	OutputCallBack outputCallback;
 	NotificationCallBack notificationCallback;
@@ -64,7 +62,6 @@ public:
 	HeaterItem();
 	~HeaterItem();
 	bool operator>(const HeaterItem& c);
-	//HeaterItem& operator=( const HeaterItem &c );
 	void setName(const String& s);
 	String getName(void);
 	void setSubtopic(const String& s);
@@ -75,7 +72,6 @@ public:
 	float getTemperature();
 	float getSensorTemperature();
 	float getRawSensorTemperature();
-	//void getTemperatureBytes(byte* array);
 	void setTargetTemperature(const float temp);
 	float getTargetTemperature();
 	void setTemperatureAdjust(const float temp);
