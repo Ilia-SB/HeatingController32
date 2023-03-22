@@ -22,6 +22,7 @@
 #include <ESP32TimerInterrupt.h>
 #include <AsyncElegantOTA.h>
 #include <ArduinoJson.h>
+#include <TLog.h>
 
 WiFiClient ethClient;
 WiFiClient tcpClient;
