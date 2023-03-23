@@ -44,6 +44,9 @@ static const char* LWT_TOPIC = "tele/heating/LWT";
 static const char* ENERGY_METER_TOPIC = "tele/energy_meter";
 static const char* ERROR_TOPIC = "error/heating";
 
+//Syslog
+#define SYSLOG_URL "192.168.1.4"
+
 //TCP
 static const char* TCP_URL = "192.168.1.3";
 static const uint16_t TCP_PORT = 8085;
