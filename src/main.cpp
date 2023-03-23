@@ -23,10 +23,14 @@
 #include <AsyncElegantOTA.h>
 #include <ArduinoJson.h>
 #include <TLog.h>
+#include <TelnetSerialStream.h>
+#include <SyslogStream.h>
 
 WiFiClient ethClient;
-WiFiClient tcpClient;
 static bool ethConnected = false;
+
+TelnetSerialStream telnetSerialStream = TelnetSerialStream();
+SyslogStream syslogStream = SyslogStream();
 
 AsyncWebServer server(80);
 
@@ -113,7 +117,6 @@ void setPorts(boolean[]);
 void processCommand(char*, char*, char*);
 void mqttCallback(char*, byte*, const unsigned int);
 bool mqttConnect(void);
-bool tcpConnect(void);
 void WiFiEvent(WiFiEvent_t);
 String webServerPlaceholderProcessor(const String&);
 void oneWireBlinkDetectedSensors(uint8_t);
@@ -384,20 +387,6 @@ void mqttCallback(char* topic, byte* payload, const unsigned int len) {
     processCommand(item, command, payloadCopy);
 }
 
-bool tcpConnect() {
-    if (!ethConnected) {
-        return false;
-    }
-
-    if (tcpClient.connect(settings.tcpUrl.c_str(), settings.tcpPort)) {
-        Serial.println("TCP client connected.");
-        return true;
-    } else {
-        Serial.println("TCP client connect failed.");
-        return false;
-    }
-}
-
 bool mqttConnect() {
     if (!ethConnected) {
         mqttLed(LOW);
@@ -433,10 +422,12 @@ void WiFiEvent(WiFiEvent_t event) {
         break;
     case ARDUINO_EVENT_ETH_CONNECTED:
         DEBUG_PRINTLN("ETH Connected");
-        ethConnected = true;
         ISR_Timer.changeInterval(TIMER_NUM_ETHERNET_LED_BLINK, LED_BLINK_MEDIUM);
         break;
     case ARDUINO_EVENT_ETH_GOT_IP:
+        syslogStream.setDestination(SYSLOG_URL);
+        syslogStream.setRaw(false);
+        Log.addPrintStream(std::make_shared<SyslogStream>(syslogStream));
         DEBUG_PRINT("ETH MAC: ");
         DEBUG_PRINT(ETH.macAddress());
         DEBUG_PRINT(", IPv4: ");
@@ -1359,11 +1350,25 @@ void setup()
     ISR_Timer.disableAll();
 
     Serial.begin(115200);
+    Log.addPrintStream(std::make_shared<TelnetSerialStream>(telnetSerialStream));
 
     //start ethernet
     ISR_Timer.enable(TIMER_NUM_ETHERNET_LED_BLINK);
     WiFi.onEvent(WiFiEvent);
     ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
+
+    {
+        auto now = millis();
+        while(millis() - now < 2000) {
+            if (ethConnected)
+                break;
+        }
+    }
+
+    Log.begin();
+
+    DEBUG_PRINT("HeatingController32 Ver. ");DEBUG_PRINT(VERSION_SHORT);DEBUG_PRINTLN(" starting...");
+    DEBUG_PRINTLN();
 
     if (!SPIFFS.begin(true)) {
         Serial.println("An Error has occurred while mounting SPIFFS");
@@ -1372,18 +1377,6 @@ void setup()
 
     //init settings
     loadSettings(settings);
-
-    if (settings.useTcp) {
-        auto now = millis();
-        while(millis() - now < 2000) {
-            if (tcpConnect()) {
-                break;
-            }
-        }
-    }
-    DEBUG_PRINT("HeatingController32 Ver. ");DEBUG_PRINT(VERSION_SHORT);DEBUG_PRINTLN(" starting...");
-    DEBUG_PRINTLN("Debug mode");
-    DEBUG_PRINTLN();
 
     DEBUG_PRINTLN("Initializing with settings:");
     DEBUG_PRINT("Hysteresis: "); DEBUG_PRINTLN(settings.hysteresis);
@@ -1520,8 +1513,6 @@ void loop()
     if (flagRestartNow) {
         if (mqttClient.connected())
             mqttClient.disconnect();
-        if (tcpClient.connected())
-            tcpClient.stop();
         auto now = millis();
         while (millis() - now < 500) {}
         ESP.restart();
@@ -1533,11 +1524,6 @@ void loop()
         mqttConnect();
     }
 
-/*
-    if (!tcpClient.connected()) {
-        tcpConnect();
-    }
-*/
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         if (flagEmergency[i]) {
             processHeaters();
@@ -1555,4 +1541,6 @@ void loop()
     if (newDataAvailable) {
         processHeaters();
     }
+
+    Log.loop();
 }
