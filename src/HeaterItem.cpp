@@ -416,6 +416,14 @@ void HeaterItem::setTempReadErrors(uint8_t errors) {
 	tempReadErrors = errors;
 }
 
+void HeaterItem::setUsesAuxAdjust(const bool b) {
+	usesAuxAdjust = b;
+}
+
+bool HeaterItem::getUsesAuxAdjust(void) {
+	return usesAuxAdjust;
+}
+
 void HeaterItem::processTemperature() {
 	if (isAuto) {
 		delta = targetTemperature - getTemperature();
