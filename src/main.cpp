@@ -732,6 +732,8 @@ void readTemperatures() {
                     heaterItems[i].setTempReadErrors(0); //reset counter
                 }
             }
+        } else {
+            heaterItems[i].setTemperature(0);
         }
 
     }
