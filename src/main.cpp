@@ -322,6 +322,7 @@ void processCommand(char* item, char* command, char* payload) {
     }
     if (strcasecmp(command, AUX_ADJUST) == 0) {
         heater->setAuxAdjust(payload);
+        heater->setUsesAuxAdjust(true);
     }
     if (strcasecmp(command, CONSUMPTION) == 0) {
         heater->setPowerConsumption(payload);
@@ -731,6 +732,8 @@ void readTemperatures() {
                     heaterItems[i].setTempReadErrors(0); //reset counter
                 }
             }
+        } else {
+            heaterItems[i].setTemperature(0);
         }
 
     }
@@ -1115,6 +1118,7 @@ void initHeaters() {
 }
 
 void initHeater(HeaterItem& heater) {
+    heater.setUsesAuxAdjust(false);
     heater.setHysteresis(settings.hysteresis);
     heater.setOutputCallBack(heaterItemOutputCallback);
     heater.setNotificationCallBack(heaterItemNotificationCallback);
@@ -1129,12 +1133,12 @@ void initHeater(HeaterItem& heater) {
 }
 
 void sanityCheckHeater(HeaterItem& heater) {
-    if (!heater.getIsConnected()) {
+    if (!heater.getIsConnected() && !heater.getUsesAuxAdjust()) {
             heater.setIsAuto(false); //Items with no temperature sensor can't be in auto mode
-        }
-        if (heater.getPhase() == HeaterItem::UNCONFIGURED || heater.getPort() == HeaterItem::UNCONFIGURED) {
-            heater.setIsEnabled(false); //Can't work with unconfigured items
-        }
+    }
+    if (heater.getPhase() == HeaterItem::UNCONFIGURED || heater.getPort() == HeaterItem::UNCONFIGURED) {
+        heater.setIsEnabled(false); //Can't work with unconfigured items
+    }
 }
 
 bool checkSensorConnected(HeaterItem& heater) {

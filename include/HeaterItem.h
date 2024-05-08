@@ -45,6 +45,7 @@ private:
 	boolean actualState = false;
 	uint8_t tempReadErrors = 0;
 	boolean sensorStarted = false;
+	boolean usesAuxAdjust = false;
 
 	float sensorTemperature = 0;
 	float targetTemperature = 0;
@@ -126,6 +127,8 @@ public:
 	void tempReadError(void);
 	void setTempReadErrors(uint8_t);
 	uint8_t getTempReadErrors(void);
+	void setUsesAuxAdjust(bool);
+	bool getUsesAuxAdjust();
 
 	void setOutputCallBack(OutputCallBack);
 	void setNotificationCallBack(NotificationCallBack);
