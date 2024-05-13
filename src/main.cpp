@@ -23,6 +23,16 @@
 #include <AsyncElegantOTA.h>
 #include <ArduinoJson.h>
 
+TaskHandle_t hndlSystem;
+TaskHandle_t hndlMain;
+TaskHandle_t hndlEmergency;
+TaskHandle_t hndlProcessHeaters;
+
+void taskSystem(void* pvParameters);
+void taskEmergency(void* pvParameters);
+void taskMain(void* pvParameters);
+void taskProcessHeaters(void* pvParameters);
+
 WiFiClient ethClient;
 WiFiClient tcpClient;
 static bool ethConnected = false;
@@ -68,30 +78,21 @@ typedef void (*irqCallback)  ();
 #define TIMER_NUM_MQTT_LED_BLINK         0
 #define TIMER_NUM_ETHERNET_LED_BLINK     1
 #define TIMER_NUM_ONEWIRE_LED_BLINK      2
-#define TIMER_NUM_REQUEST_TEMPERATURES   3
 
-
-#define NUMBER_OF_ISR_TIMERS 4 //number of previous defines
+#define NUMBER_OF_ISR_TIMERS 3 //number of previous defines
 
 void mqttLedBlink(void);
 void ethernetLedBlink(void);
 void oneWireLedBlink(void);
 void oneWireLedOff(void);
-void requestTemperaturesISR(void);
 void requestTemperatures(void);
-void readTemperaturesISR(void);
 void readTemperatures(void);
 
 irqCallback isrTimerCallbacks[NUMBER_OF_ISR_TIMERS] = {
     mqttLedBlink,
     ethernetLedBlink,
-    oneWireLedBlink,
-    requestTemperaturesISR
+    oneWireLedBlink
 };
-
-volatile bool flagRequestTemperatures = false;
-volatile bool flagReadTemperatures = false;
-volatile bool newDataAvailable = false;
 
 bool flagEmergency[NUMBER_OF_PHASES] = {false,false,false};
 
@@ -227,11 +228,16 @@ void getConsumptionData(const char* rawData) {
             consumptionDataRecieved = true;
             currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
             consumptionDataReceived[phase] = millis();
+            bool emergency = false;
             //DEBUG_PRINTLN(currentConsumption[phase]);
             if (currentConsumption[phase] > settings.consumptionLimit[phase]) {
                 flagEmergency[phase] = true;
+                emergency = true;
             } else {
                 flagEmergency[phase] = false;
+            }
+            if(emergency) {
+                vTaskResume(hndlEmergency);
             }
         }
     }
@@ -335,7 +341,7 @@ void processCommand(char* item, char* command, char* payload) {
     sanityCheckHeater(*heater);
     saveState(*heater);
     reportHeaterState(*heater);
-    newDataAvailable = true;
+    vTaskResume(hndlProcessHeaters);
 }
 
 void mqttCallback(char* topic, byte* payload, const unsigned int len) {
@@ -687,21 +693,11 @@ void oneWireBlinkDetectedSensors(uint8_t sensorsCount) {
     delay(500);
 }
 
-void requestTemperaturesISR(void) {
-    flagRequestTemperatures = true;
-}
-
 void requestTemperatures() {
     DEBUG_PRINTLN("Requesting temperatures...");
     oneWireLed(HIGH);
     ISR_Timer.setTimeout(LED_BLINK_FAST, oneWireLedOff); //turn the led off for a while to indicate activity
     sensors.requestTemperatures();
-    ISR_Timer.setTimeout(READ_SENSORS_DELAY, readTemperaturesISR);
-    flagRequestTemperatures = false;
-}
-
-void readTemperaturesISR() {
-    flagReadTemperatures = true;
 }
 
 void readTemperatures() {
@@ -737,9 +733,8 @@ void readTemperatures() {
         }
 
     }
-    flagReadTemperatures = false;
     reportTemperatures();
-    newDataAvailable = true;
+    vTaskResume(hndlProcessHeaters);
 }
 
 void setDefaultSettings(Settings& settings) {
@@ -1008,7 +1003,7 @@ void processSettingsForm(AsyncWebServerRequest* request) {
 
     saveState(heaterItems[itemNo]);
     request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
-    newDataAvailable = true;
+    vTaskResume(hndlProcessHeaters);
 }
 
 void reboot(AsyncWebServerRequest* request) {
@@ -1052,7 +1047,7 @@ void processControlForm(AsyncWebServerRequest* request) {
 
     saveState(heaterItems[itemNo]);
     request->send(SPIFFS, "/control.html", String(), false, webServerPlaceholderProcessor);
-    newDataAvailable = true;
+    vTaskResume(hndlProcessHeaters);
 }
 
 void reportTemperatures() {
@@ -1108,9 +1103,7 @@ void initHeaters() {
     }
     
     requestTemperatures();
-    while (!flagReadTemperatures) {
-        yield();
-    }
+    delay(READ_SENSORS_DELAY);
     readTemperatures();
     reportHeatersState();
     heatersInitialized = true;
@@ -1173,7 +1166,6 @@ void processHeaters() {
     DEBUG_PRINTLN("Processing heaters...");
     for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
         DEBUG_PRINT("Phase "); DEBUG_PRINT(phase + 1);
-        newDataAvailable = false;
         int16_t availablePower = 0;
         bool usingEstimatedConsumption = false;
         if (millis() - consumptionDataReceived[phase] < 5000) { //if data from the energy meter is not older than 5 sec.
@@ -1333,6 +1325,50 @@ uint16_t calculateHeatersConsumption(uint8_t phase) {
     return consumption;
 }
 
+void taskSystem(void* pvParameters) {
+    while(true) {
+        if (flagRestartNow) {
+            if (mqttClient.connected())
+                mqttClient.disconnect();
+            if (tcpClient.connected())
+                tcpClient.stop();
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+            ESP.restart();
+        }
+        if (mqttClient.connected()) {
+            mqttClient.loop();
+        }
+        else {
+            mqttConnect();
+        }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
+}
+
+void taskEmergency(void* pvParameters) {
+    while(true) {
+        processHeaters();
+        vTaskSuspend(NULL);
+    }
+}
+
+void taskMain(void* pvParameters) {
+    while(true) {
+        requestTemperatures();
+        vTaskDelay(READ_SENSORS_DELAY / portTICK_PERIOD_MS);
+        readTemperatures();
+        processHeaters();
+        vTaskDelay(TEMPERATURE_READ_INTERVAL / portTICK_PERIOD_MS);
+    }
+}
+
+void taskProcessHeaters(void* pvParameters) {
+    while(true) {
+        processHeaters();
+        vTaskSuspend(NULL);
+    }
+}
+
 void setup()
 {
     pinMode(ETHERNET_LED, OUTPUT);
@@ -1358,7 +1394,6 @@ void setup()
     ISR_Timer.setInterval(LED_BLINK_FAST, isrTimerCallbacks[TIMER_NUM_MQTT_LED_BLINK]);
     ISR_Timer.setInterval(LED_BLINK_FAST, isrTimerCallbacks[TIMER_NUM_ETHERNET_LED_BLINK]);
     ISR_Timer.setInterval(LED_BLINK_FAST, isrTimerCallbacks[TIMER_NUM_ONEWIRE_LED_BLINK]);
-    ISR_Timer.setInterval(TEMPERATURE_READ_INTERVAL, isrTimerCallbacks[TIMER_NUM_REQUEST_TEMPERATURES]);
     ISR_Timer.disableAll();
 
     Serial.begin(115200);
@@ -1512,50 +1547,13 @@ void setup()
         break;
     }
 
-    ISR_Timer.enable(TIMER_NUM_REQUEST_TEMPERATURES);
-
-    DEBUG_PRINTLN("Entering main loop.");
+    DEBUG_PRINTLN("Starting tasks...");
+    xTaskCreate(taskSystem, "System", 4096, NULL, 1, &hndlSystem);
+    xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
+    xTaskCreate(taskEmergency, "Emergency", 4096, NULL, 3, &hndlEmergency);
+    vTaskSuspend(hndlEmergency);
+    xTaskCreate(taskProcessHeaters, "ProcessHeaters", 4096, NULL, 2, &hndlProcessHeaters);
+    vTaskSuspend(hndlProcessHeaters);
 }
 
-// Add the main program code into the continuous loop() function
-void loop()
-{
-    if (flagRestartNow) {
-        if (mqttClient.connected())
-            mqttClient.disconnect();
-        if (tcpClient.connected())
-            tcpClient.stop();
-        auto now = millis();
-        while (millis() - now < 500) {}
-        ESP.restart();
-    }
-    if (mqttClient.connected()) {
-        mqttClient.loop();
-    }
-    else {
-        mqttConnect();
-    }
-
-/*
-    if (!tcpClient.connected()) {
-        tcpConnect();
-    }
-*/
-    for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
-        if (flagEmergency[i]) {
-            processHeaters();
-        }
-    }
-
-    if (flagRequestTemperatures) {
-        requestTemperatures();
-    }
-
-    if (flagReadTemperatures) {
-        readTemperatures();
-    }
-
-    if (newDataAvailable) {
-        processHeaters();
-    }
-}
+void loop() {}
