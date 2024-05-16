@@ -1,6 +1,4 @@
 // HeaterItem.h
-//TODO: Callback for state changes
-
 
 #ifndef _HEATERITEM_h
 #define _HEATERITEM_h
