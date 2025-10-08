@@ -1556,4 +1556,6 @@ void setup()
     vTaskSuspend(hndlProcessHeaters);
 }
 
-void loop() {}
+void loop() {
+    ElegantOTA.loop();
+}
