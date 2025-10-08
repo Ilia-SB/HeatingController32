@@ -16,7 +16,8 @@
     #define DEBUG_PRINTHEX(x)		Serial.print (x, HEX); if(tcpClient.connected()) tcpClient.print(x, HEX);
     #define DEBUG_PRINTLN(x)		Serial.println (x); if(tcpClient.connected()) tcpClient.println(x);
     #define DEBUG_PRINT_ARRAY(x, len)   for(uint8_t i=0; i<len; i++) {Serial.print(x[i]);Serial.print(" "); if(tcpClient.connected()) {tcpClient.print(x[i]); tcpClient.print(" ");}}
-    #define DEBUG_MEMORY()          Serial.println();Serial.print(F("!!! Free memory: "));Serial.print(freeMemory());Serial.println(F(" !!!"));Serial.println();
+    //#define DEBUG_MEMORY()          Serial.println();Serial.print(F("!!! Free memory: "));Serial.print(freeMemory());Serial.println(F(" !!!"));Serial.println();if(tcpClient.connected()) {tcpClient.print("!!! Free memory: "); tcpClient.println(freeMemory());}
+    #define DEBUG_STACK             Serial.print("~~~Free stack: "); Serial.println(4 * uxTaskGetStackHighWaterMark(NULL)); if(tcpClient.connected()) {tcpClient.print("~~~Free stack: "); tcpClient.println(4 * uxTaskGetStackHighWaterMark(NULL));}
 #else
     #define DEBUG_PRINT(x)
     #define DEBUG_PRINTDEC(x)

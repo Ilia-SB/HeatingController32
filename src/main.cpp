@@ -1354,11 +1354,13 @@ void taskEmergency(void* pvParameters) {
 
 void taskMain(void* pvParameters) {
     while(true) {
+        DEBUG_STACK;
         requestTemperatures();
         vTaskDelay(READ_SENSORS_DELAY / portTICK_PERIOD_MS);
         readTemperatures();
         processHeaters();
         vTaskDelay(TEMPERATURE_READ_INTERVAL / portTICK_PERIOD_MS);
+        DEBUG_STACK;
     }
 }
 
@@ -1547,12 +1549,19 @@ void setup()
         break;
     }
 
+    // Wait 1 minute to allow OTA firmware update in case board crashes when starting tasks
+    DEBUG_PRINTLN("Upload firmware now...");
+    now = millis();
+    while(millis() - now < 60000) {
+        ElegantOTA.loop();
+    }
+
     DEBUG_PRINTLN("Starting tasks...");
-    xTaskCreate(taskSystem, "System", 4096, NULL, 1, &hndlSystem);
-    xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
-    xTaskCreate(taskEmergency, "Emergency", 4096, NULL, 3, &hndlEmergency);
+    xTaskCreate(taskSystem, "System", 30 * configMINIMAL_STACK_SIZE, NULL, 1, &hndlSystem);
+    xTaskCreate(taskMain, "Main", 30 * configMINIMAL_STACK_SIZE, NULL, 1, &hndlMain);
+    xTaskCreate(taskEmergency, "Emergency", 30 * configMINIMAL_STACK_SIZE, NULL, 3, &hndlEmergency);
     vTaskSuspend(hndlEmergency);
-    xTaskCreate(taskProcessHeaters, "ProcessHeaters", 4096, NULL, 2, &hndlProcessHeaters);
+    xTaskCreate(taskProcessHeaters, "ProcessHeaters", 30 * configMINIMAL_STACK_SIZE, NULL, 2, &hndlProcessHeaters);
     vTaskSuspend(hndlProcessHeaters);
 }
 
