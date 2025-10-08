@@ -20,7 +20,7 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <ESP32TimerInterrupt.h>
-#include <AsyncElegantOTA.h>
+#include <ElegantOTA.h>
 #include <ArduinoJson.h>
 
 TaskHandle_t hndlSystem;
@@ -1522,7 +1522,7 @@ void setup()
         request->send(SPIFFS, filename, "text/plain");
     });
 
-    AsyncElegantOTA.begin(&server);
+    ElegantOTA.begin(&server);
     server.begin();
 
     mqttConnect();
