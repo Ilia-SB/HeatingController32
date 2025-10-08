@@ -1,10 +1,10 @@
 
 #ifndef BUILD_NUMBER
-  #define BUILD_NUMBER "470"
+  #define BUILD_NUMBER "481"
 #endif
 #ifndef VERSION
-  #define VERSION "ver. Tasks-1.12.251008_470 - 2025-10-08 15:44:05.347591"
+  #define VERSION "ver. Tasks-1.12.251008_481 - 2025-10-08 22:02:53.655533"
 #endif
 #ifndef VERSION_SHORT
-  #define VERSION_SHORT "ver. Tasks-1.12.251008_470"
+  #define VERSION_SHORT "ver. Tasks-1.12.251008_481"
 #endif
