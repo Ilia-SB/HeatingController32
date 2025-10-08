@@ -129,11 +129,17 @@ bool HeaterItem::setIsAuto(const char* val) {
 
 bool HeaterItem::setWantsOn(const char* val) {
 	if (isAuto == false) {
-		if (strcmp(val, ON) == 0)
+		if (strcmp(val, ON) == 0) {
 			setWantsOn(true);
-		else if (strcmp(val, OFF) == 0)
+			return true;
+		}
+		else if (strcmp(val, OFF) == 0) {
 			setWantsOn(false);
-		else return false;
+			return true;
+		}
+		else {
+			return false;
+		}
 	}
 	return false;
 }
