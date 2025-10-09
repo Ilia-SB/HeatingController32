@@ -141,6 +141,7 @@ uint16_t calculateHeatersConsumption(uint8_t);
 void sanityCheckHeater(HeaterItem&);
 void deleteSettings(void);
 void reboot(AsyncWebServerRequest*);
+void onOtaStart(void);
 
 void heaterItemOutputCallback(uint8_t, bool);
 void heaterItemNotificationCallback(HeaterItem& heater);
@@ -731,10 +732,8 @@ void readTemperatures() {
         } else {
             heaterItems[i].setTemperature(0);
         }
-
     }
     reportTemperatures();
-    vTaskResume(hndlProcessHeaters);
 }
 
 void setDefaultSettings(Settings& settings) {
@@ -1012,6 +1011,16 @@ void reboot(AsyncWebServerRequest* request) {
     flagRestartNow = true;
 }
 
+void onOtaStart() {
+    DEBUG_PRINTLN("Starting firmware update...");
+    if (hndlMain != NULL) {
+        vTaskSuspend(hndlMain);
+    }
+    if (hndlEmergency != NULL) {
+        vTaskSuspend(hndlEmergency);
+    }
+}
+
 void processControlForm(AsyncWebServerRequest* request) {
     uint8_t itemNo = 0;
     if (request->hasParam("item", true)) {
@@ -1106,6 +1115,7 @@ void initHeaters() {
     delay(READ_SENSORS_DELAY);
     readTemperatures();
     reportHeatersState();
+    processHeaters();
     heatersInitialized = true;
     DEBUG_PRINTLN("Heaters initialized");
 }
@@ -1327,6 +1337,7 @@ uint16_t calculateHeatersConsumption(uint8_t phase) {
 
 void taskSystem(void* pvParameters) {
     while(true) {
+        ElegantOTA.loop();
         if (flagRestartNow) {
             if (mqttClient.connected())
                 mqttClient.disconnect();
@@ -1524,8 +1535,17 @@ void setup()
         request->send(SPIFFS, filename, "text/plain");
     });
 
+    ElegantOTA.onStart(onOtaStart);
     ElegantOTA.begin(&server);
     server.begin();
+
+    // Wait 1 minute to allow OTA firmware update in case board crashes when starting tasks
+    DEBUG_PRINTLN("Upload firmware now...");
+    auto now = millis();
+    while(millis() - now < 60000) {
+        ElegantOTA.loop();
+        yield();
+    }
 
     mqttConnect();
 
@@ -1541,30 +1561,29 @@ void setup()
         }
     }
 
-    auto now = millis();
+    now = millis();
     while (millis()-now < 5000) {
         if (mqttClient.connected())
             mqttClient.loop();
+            yield();
         if (consumptionDataRecieved)
         break;
     }
 
-    // Wait 1 minute to allow OTA firmware update in case board crashes when starting tasks
-    DEBUG_PRINTLN("Upload firmware now...");
+    DEBUG_PRINTLN("Starting tasks...");
+
     now = millis();
     while(millis() - now < 60000) {
-        ElegantOTA.loop();
+        yield();
     }
 
-    DEBUG_PRINTLN("Starting tasks...");
-    xTaskCreate(taskSystem, "System", 30 * configMINIMAL_STACK_SIZE, NULL, 1, &hndlSystem);
-    xTaskCreate(taskMain, "Main", 30 * configMINIMAL_STACK_SIZE, NULL, 1, &hndlMain);
-    xTaskCreate(taskEmergency, "Emergency", 30 * configMINIMAL_STACK_SIZE, NULL, 3, &hndlEmergency);
+    xTaskCreate(taskSystem, "System", 10 * configMINIMAL_STACK_SIZE, NULL, 1, &hndlSystem);
+    xTaskCreate(taskMain, "Main", 10 * configMINIMAL_STACK_SIZE, NULL, 1, &hndlMain);
+    xTaskCreate(taskEmergency, "Emergency", 10 * configMINIMAL_STACK_SIZE, NULL, 3, &hndlEmergency);
     vTaskSuspend(hndlEmergency);
-    xTaskCreate(taskProcessHeaters, "ProcessHeaters", 30 * configMINIMAL_STACK_SIZE, NULL, 2, &hndlProcessHeaters);
-    vTaskSuspend(hndlProcessHeaters);
+    //xTaskCreate(taskProcessHeaters, "ProcessHeaters", 10 * configMINIMAL_STACK_SIZE, NULL, 2, &hndlProcessHeaters);
+    //vTaskSuspend(hndlProcessHeaters);
 }
 
 void loop() {
-    ElegantOTA.loop();
 }
