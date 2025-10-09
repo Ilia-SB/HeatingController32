@@ -1618,10 +1618,11 @@ void setup()
     DEBUG_PRINTLN("Starting tasks...");
     mutex = xSemaphoreCreateMutex();
 
-    xTaskCreate(taskSystem, "System", 10 * configMINIMAL_STACK_SIZE, NULL, 1, &hndlSystem);
-    xTaskCreate(taskMain, "Main", 10 * configMINIMAL_STACK_SIZE, NULL, 1, &hndlMain);
-    xTaskCreate(taskEmergency, "Emergency", 10 * configMINIMAL_STACK_SIZE, NULL, 3, &hndlEmergency);
-    xTaskCreate(taskProcessHeaters, "ProcessHeaters", 10 * configMINIMAL_STACK_SIZE, NULL, 2, &hndlProcessHeaters);
+    //stack size calculation based on empirical data
+    xTaskCreate(taskSystem, "System", 10 * configMINIMAL_STACK_SIZE - 20000, NULL, 1, &hndlSystem);
+    xTaskCreate(taskMain, "Main", 10 * configMINIMAL_STACK_SIZE - 24000, NULL, 1, &hndlMain);
+    xTaskCreate(taskEmergency, "Emergency", 10 * configMINIMAL_STACK_SIZE - 24000, NULL, 3, &hndlEmergency);
+    xTaskCreate(taskProcessHeaters, "ProcessHeaters", 10 * configMINIMAL_STACK_SIZE - 24000, NULL, 2, &hndlProcessHeaters);
 }
 
 void loop() {
