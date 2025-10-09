@@ -343,7 +343,9 @@ void processCommand(char* item, char* command, char* payload) {
     sanityCheckHeater(*heater);
     saveState(*heater);
     reportHeaterState(*heater);
-    processHeaters();
+    if (hndlProcessHeaters != NULL) {
+        vTaskResume(hndlProcessHeaters);
+    }
 }
 
 void mqttCallback(char* topic, byte* payload, const unsigned int len) {
