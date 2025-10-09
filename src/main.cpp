@@ -1395,7 +1395,7 @@ void setup()
             }
         }
     }
-    DEBUG_PRINT("HeatingController32 Ver. ");DEBUG_PRINT(VERSION_SHORT);DEBUG_PRINTLN(" starting...");
+    DEBUG_PRINTLN();DEBUG_PRINT("HeatingController32 ");DEBUG_PRINT(VERSION_SHORT);DEBUG_PRINTLN(" starting...");
     DEBUG_PRINTLN("Debug mode");
     DEBUG_PRINTLN();
 
@@ -1499,6 +1499,7 @@ void setup()
     });
 
     ElegantOTA.begin(&server);
+    ElegantOTA.setAutoReboot(true);
     server.begin();
 
     mqttConnect();
