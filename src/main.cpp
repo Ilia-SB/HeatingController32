@@ -1376,13 +1376,13 @@ void taskEmergency(void* pvParameters) {
 
 void taskMain(void* pvParameters) {
     while(true) {
-        DEBUG_STACK;
+        DEBUG_PRINT(">>>"); DEBUG_STACK;
         requestTemperatures();
         vTaskDelay(READ_SENSORS_DELAY / portTICK_PERIOD_MS);
         readTemperatures();
         processHeaters();
         vTaskDelay(TEMPERATURE_READ_INTERVAL / portTICK_PERIOD_MS);
-        DEBUG_STACK;
+        DEBUG_PRINT("<<<"); DEBUG_STACK;
     }
 }
 
