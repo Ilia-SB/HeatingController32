@@ -142,6 +142,7 @@ void sanityCheckHeater(HeaterItem&);
 void deleteSettings(void);
 void reboot(AsyncWebServerRequest*);
 void onOtaStart(void);
+void onOtaEnd(bool);
 
 void heaterItemOutputCallback(uint8_t, bool);
 void heaterItemNotificationCallback(HeaterItem& heater);
@@ -342,7 +343,7 @@ void processCommand(char* item, char* command, char* payload) {
     sanityCheckHeater(*heater);
     saveState(*heater);
     reportHeaterState(*heater);
-    vTaskResume(hndlProcessHeaters);
+    processHeaters();
 }
 
 void mqttCallback(char* topic, byte* payload, const unsigned int len) {
@@ -1021,6 +1022,15 @@ void onOtaStart() {
     }
 }
 
+void onOtaEnd(bool success) {
+    if (success) {
+        DEBUG_PRINTLN("Firmware update successfull");
+        ESP.restart();
+    } else {
+        DEBUG_PRINTLN("Firmware update failed");
+    }
+}
+
 void processControlForm(AsyncWebServerRequest* request) {
     uint8_t itemNo = 0;
     if (request->hasParam("item", true)) {
@@ -1357,6 +1367,7 @@ void taskSystem(void* pvParameters) {
 }
 
 void taskEmergency(void* pvParameters) {
+    vTaskSuspend(NULL);
     while(true) {
         processHeaters();
         vTaskSuspend(NULL);
@@ -1376,6 +1387,7 @@ void taskMain(void* pvParameters) {
 }
 
 void taskProcessHeaters(void* pvParameters) {
+    vTaskSuspend(NULL);
     while(true) {
         processHeaters();
         vTaskSuspend(NULL);
@@ -1432,7 +1444,7 @@ void setup()
             }
         }
     }
-    DEBUG_PRINT("HeatingController32 Ver. ");DEBUG_PRINT(VERSION_SHORT);DEBUG_PRINTLN(" starting...");
+    DEBUG_PRINT("HeatingController32 ");DEBUG_PRINT(VERSION_SHORT);DEBUG_PRINTLN(" starting...");
     DEBUG_PRINTLN("Debug mode");
     DEBUG_PRINTLN();
 
@@ -1536,15 +1548,15 @@ void setup()
     });
 
     ElegantOTA.onStart(onOtaStart);
+    ElegantOTA.onEnd(onOtaEnd);
     ElegantOTA.begin(&server);
     server.begin();
 
-    // Wait 1 minute to allow OTA firmware update in case board crashes when starting tasks
+    // Wait 1 minute to allow OTA firmware update in case board crashes after starting tasks
     DEBUG_PRINTLN("Upload firmware now...");
     auto now = millis();
     while(millis() - now < 60000) {
         ElegantOTA.loop();
-        yield();
     }
 
     mqttConnect();
@@ -1561,6 +1573,7 @@ void setup()
         }
     }
 
+    //wait 5 seconds to get energy meter data from mqtt
     now = millis();
     while (millis()-now < 5000) {
         if (mqttClient.connected())
@@ -1571,18 +1584,10 @@ void setup()
     }
 
     DEBUG_PRINTLN("Starting tasks...");
-
-    now = millis();
-    while(millis() - now < 60000) {
-        yield();
-    }
-
     xTaskCreate(taskSystem, "System", 10 * configMINIMAL_STACK_SIZE, NULL, 1, &hndlSystem);
     xTaskCreate(taskMain, "Main", 10 * configMINIMAL_STACK_SIZE, NULL, 1, &hndlMain);
     xTaskCreate(taskEmergency, "Emergency", 10 * configMINIMAL_STACK_SIZE, NULL, 3, &hndlEmergency);
-    vTaskSuspend(hndlEmergency);
-    //xTaskCreate(taskProcessHeaters, "ProcessHeaters", 10 * configMINIMAL_STACK_SIZE, NULL, 2, &hndlProcessHeaters);
-    //vTaskSuspend(hndlProcessHeaters);
+    xTaskCreate(taskProcessHeaters, "ProcessHeaters", 10 * configMINIMAL_STACK_SIZE, NULL, 2, &hndlProcessHeaters);
 }
 
 void loop() {
