@@ -11,7 +11,7 @@
 #include "HeaterItem.h"
 #include "MqttInterface.h"
 #include "DebugPrint.h"
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <ETH.h>
@@ -661,7 +661,7 @@ String webServerPlaceholderProcessor(const String& placeholder) {
         for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
             String fileName;
             getItemFilename(i, fileName);
-            if (SPIFFS.exists(fileName)) {
+            if (LittleFS.exists(fileName)) {
                 retValue += "<label><p style=\"line-height: 1.8;\"><input type=\"checkbox\" data-url=\"";
                 retValue += fileName;
                 retValue += "\" checked>";
@@ -824,10 +824,7 @@ void getSettingsFilename(String& fileName) {
 void saveSettings(Settings& settings) {
     String fileName;
     getSettingsFilename(fileName);
-    if (SPIFFS.exists(fileName)) {
-        SPIFFS.remove(fileName);
-    }
-    File file = SPIFFS.open(fileName, FILE_WRITE, true);
+    File file = LittleFS.open(fileName, FILE_WRITE, true);
     StaticJsonDocument<JSON_DOCUMENT_SIZE_SETTINGS> doc;
     doc[SETTINGS_SETTINGS_VERSION] = SETTINGS_VERSION;
     doc[SETTINGS_HYSTERESIS] = settings.hysteresis;
@@ -854,10 +851,7 @@ void saveSettings(Settings& settings) {
 void saveState(HeaterItem& heaterItem) {
     String fileName;
     getItemFilename(heaterItem.getAddress(), fileName);
-    if (SPIFFS.exists(fileName)) {
-        SPIFFS.remove(fileName);
-    }
-    File file = SPIFFS.open(fileName, FILE_WRITE, true);
+    File file = LittleFS.open(fileName, FILE_WRITE, true);
     StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
     itemToJson(heaterItem, doc, false);
 
@@ -875,11 +869,11 @@ void saveState(HeaterItem& heaterItem) {
 void loadSettings(Settings& settings) {
     String fileName;
     getSettingsFilename(fileName);
-    if (!SPIFFS.exists(fileName)) {
+    if (!LittleFS.exists(fileName)) {
         setDefaultSettings(settings);
     }
     else {
-        File file = SPIFFS.open(fileName, FILE_READ, true);
+        File file = LittleFS.open(fileName, FILE_READ, true);
 
         StaticJsonDocument<JSON_DOCUMENT_SIZE_SETTINGS> doc;
         deserializeJson(doc, file);
@@ -906,13 +900,13 @@ void deleteSettings() {
     DEBUG_PRINTLN("Deleting global settings.");
     String fileName;
     getSettingsFilename(fileName);
-    SPIFFS.remove(fileName);
+    LittleFS.remove(fileName);
     for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
         String fileName;
         getItemFilename(i, fileName);
-        if (SPIFFS.exists(fileName)) {
+        if (LittleFS.exists(fileName)) {
             DEBUG_PRINT("Deleting settings for ");DEBUG_PRINT(fileName);DEBUG_PRINTLN(".");
-            SPIFFS.remove(fileName);
+            LittleFS.remove(fileName);
         }
     }
 }
@@ -920,11 +914,11 @@ void deleteSettings() {
 void loadState(HeaterItem& heaterItem) {
     String fileName;
     getItemFilename(heaterItem.getAddress(), fileName);
-    if(!SPIFFS.exists(fileName)) {
+    if(!LittleFS.exists(fileName)) {
         setDefaults(heaterItem);
     }
     else {
-        File file = SPIFFS.open(fileName, FILE_READ, true);    
+        File file = LittleFS.open(fileName, FILE_READ, true);    
 
         StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
         deserializeJson(doc, file);
@@ -1024,29 +1018,27 @@ void processSettingsForm(AsyncWebServerRequest* request) {
     }
 
     saveState(heaterItems[itemNo]);
-    request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
+    request->send(LittleFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     vTaskResume(hndlProcessHeaters);
 }
 
 void reboot(AsyncWebServerRequest* request) {
     //TODO: fancy javascript for redirect
-    request->send(SPIFFS, "/rebooting.html");
+    request->send(LittleFS, "/rebooting.html");
     flagRestartNow = true;
 }
 
 void onOtaStart() {
     DEBUG_PRINTLN("Starting firmware update...");
-    if (hndlMain != NULL) {
-        vTaskSuspend(hndlMain);
-    }
-    if (hndlEmergency != NULL) {
-        vTaskSuspend(hndlEmergency);
-    }
 }
 
 void onOtaEnd(bool success) {
     if (success) {
         DEBUG_PRINTLN("Firmware update successfull");
+        DEBUG_PRINT("Waiting for running task to complete before reboot")
+        while(!xSemaphoreTake(mutex, portMAX_DELAY)) {
+            DEBUG_PRINT(".");
+        }
         ESP.restart();
     } else {
         DEBUG_PRINTLN("Firmware update failed");
@@ -1087,7 +1079,7 @@ void processControlForm(AsyncWebServerRequest* request) {
     }
 
     saveState(heaterItems[itemNo]);
-    request->send(SPIFFS, "/control.html", String(), false, webServerPlaceholderProcessor);
+    request->send(LittleFS, "/control.html", String(), false, webServerPlaceholderProcessor);
     vTaskResume(hndlProcessHeaters);
 }
 
@@ -1466,7 +1458,7 @@ void setup()
     WiFi.onEvent(WiFiEvent);
     ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
 
-    if (!SPIFFS.begin(true)) {
+    if (!LittleFS.begin(true)) {
         Serial.println("An Error has occurred while mounting SPIFFS");
         return;
     }
@@ -1522,40 +1514,40 @@ void setup()
     DEBUG_PRINTLN();
 
     server.on("/default.css", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, "/default.css", "text/css");
+        request->send(LittleFS, "/default.css", "text/css");
     });
     server.on("/jquery-3.6.1.min.js", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, "/jquery-3.6.1.min.js", "text/javascript");
+        request->send(LittleFS, "/jquery-3.6.1.min.js", "text/javascript");
     });
     server.on("/jszip-utils.ie.min.js", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, "/jszip-utils.ie.min.js", "text/javascript");
+        request->send(LittleFS, "/jszip-utils.ie.min.js", "text/javascript");
     });
     server.on("/jszip-utils.min.js", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, "/jszip-utils.min.js", "text/javascript");
+        request->send(LittleFS, "/jszip-utils.min.js", "text/javascript");
     });
     server.on("/jszip.min.js", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, "/jszip.min.js", "text/javascript");
+        request->send(LittleFS, "/jszip.min.js", "text/javascript");
     });
     server.on("/filesaver.min.js", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, "/filesaver.min.js", "text/javascript");
+        request->send(LittleFS, "/filesaver.min.js", "text/javascript");
     });
     server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, "/main.html", String(), false, webServerPlaceholderProcessor);
+        request->send(LittleFS, "/main.html", String(), false, webServerPlaceholderProcessor);
     });
     server.on("/settings", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
+        request->send(LittleFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     });
     server.on("/control", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, "/control.html", String(), false, webServerPlaceholderProcessor);
+        request->send(LittleFS, "/control.html", String(), false, webServerPlaceholderProcessor);
     });
     server.on("/sensors", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, "/sensors.html", String(), false, webServerPlaceholderProcessor);
+        request->send(LittleFS, "/sensors.html", String(), false, webServerPlaceholderProcessor);
     });
     server.on("/backup", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, "/backup.html", String(), false, webServerPlaceholderProcessor);
+        request->send(LittleFS, "/backup.html", String(), false, webServerPlaceholderProcessor);
     });
     server.on("/rebooting.html", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(SPIFFS, "/rebooting.html", "text/html");
+        request->send(LittleFS, "/rebooting.html", "text/html");
     });
     server.on("/settings", HTTP_POST, processSettingsForm);
     server.on("/control", HTTP_POST, processControlForm);
@@ -1565,7 +1557,7 @@ void setup()
 
     server.on("/files", HTTP_GET, [](AsyncWebServerRequest* request) {
         String html;
-        File root = SPIFFS.open("/");
+        File root = LittleFS.open("/");
         File file = root.openNextFile();
  
         while(file){
@@ -1582,7 +1574,7 @@ void setup()
     server.onNotFound([](AsyncWebServerRequest* request) {
         int pos = request->url().lastIndexOf("/");
         String filename = request->url().substring(pos);
-        request->send(SPIFFS, filename, "text/plain");
+        request->send(LittleFS, filename, "text/plain");
     });
 
     ElegantOTA.onStart(onOtaStart);
