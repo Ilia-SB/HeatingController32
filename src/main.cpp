@@ -1625,6 +1625,8 @@ void setup()
     xTaskCreate(taskEmergency, "Emergency", 4096, NULL, 3, &hndlEmergency);
     xTaskCreate(taskProcessHeaters, "ProcessHeaters", 4096, NULL, 2, &hndlProcessHeaters);
     //TODO: Process heaters based on flag or notification rather than waking task
+    //TODO: reboot reason and number of reboots
+    //TODO: Disconnect tcpClient on reboot
 }
 
 void loop() {
