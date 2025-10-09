@@ -1624,6 +1624,7 @@ void setup()
     xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
     xTaskCreate(taskEmergency, "Emergency", 4096, NULL, 3, &hndlEmergency);
     xTaskCreate(taskProcessHeaters, "ProcessHeaters", 4096, NULL, 2, &hndlProcessHeaters);
+    //TODO: Process heaters based on flag or notification rather than waking task
 }
 
 void loop() {
