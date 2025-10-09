@@ -824,6 +824,9 @@ void getSettingsFilename(String& fileName) {
 void saveSettings(Settings& settings) {
     String fileName;
     getSettingsFilename(fileName);
+    if (SPIFFS.exists(fileName)) {
+        SPIFFS.remove(fileName);
+    }
     File file = SPIFFS.open(fileName, FILE_WRITE, true);
     StaticJsonDocument<JSON_DOCUMENT_SIZE_SETTINGS> doc;
     doc[SETTINGS_SETTINGS_VERSION] = SETTINGS_VERSION;
@@ -851,6 +854,9 @@ void saveSettings(Settings& settings) {
 void saveState(HeaterItem& heaterItem) {
     String fileName;
     getItemFilename(heaterItem.getAddress(), fileName);
+    if (SPIFFS.exists(fileName)) {
+        SPIFFS.remove(fileName);
+    }
     File file = SPIFFS.open(fileName, FILE_WRITE, true);
     StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
     itemToJson(heaterItem, doc, false);
