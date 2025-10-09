@@ -302,9 +302,10 @@ void processCommand(char* item, char* command, char* payload) {
     strcat(statusTopic, "/");
 
     HeaterItem* heater = &heaterItems[heaterNum];
-
+    bool save = false;
     if (strcasecmp(command, IS_AUTO) == 0) {
         heater->setIsAuto(payload);
+        save = true;
     }
     if (strcasecmp(command, IS_ON) == 0) {
         if (heater->getIsAuto() == false)
@@ -312,21 +313,27 @@ void processCommand(char* item, char* command, char* payload) {
     }
     if (strcasecmp(command, PRIORITY) == 0) {
         heater->setPriority(payload);
+        save = true;
     }
     if (strcasecmp(command, TARGET_TEMPERATURE) == 0) {
         heater->setTargetTemperature(payload);
+        save = true;
     }
     if (strcasecmp(command, SENSOR) == 0) {
         heater->setSensorAddress(payload);
+        save = true;
     }
     if (strcasecmp(command, PORT) == 0) {
         heater->setPort(payload);
+        save = true;
     }
     if (strcasecmp(command, PHASE) == 0) {
         heater->setPhase(payload);
+        save = true;
     }
     if (strcasecmp(command, TEMPERATURE_ADJUST) == 0) {
         heater->setTemperatureAdjust(payload);
+        save = true;
     }
     if (strcasecmp(command, AUX_ADJUST) == 0) {
         heater->setAuxAdjust(payload);
@@ -334,14 +341,18 @@ void processCommand(char* item, char* command, char* payload) {
     }
     if (strcasecmp(command, CONSUMPTION) == 0) {
         heater->setPowerConsumption(payload);
+        save = true;
     }
     if (strcasecmp(command, IS_ENABLED) == 0) {
         heater->setIsEnaled(payload);
+        save = true;
     }
 
     heater->setIsConnected(checkSensorConnected(*heater));
     sanityCheckHeater(*heater);
-    saveState(*heater);
+    if (save) {
+        saveState(*heater);
+    }
     reportHeaterState(*heater);
     if (hndlProcessHeaters != NULL) {
         vTaskResume(hndlProcessHeaters);
