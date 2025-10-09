@@ -840,7 +840,7 @@ void saveState(HeaterItem& heaterItem) {
     itemToJson(heaterItem, doc, false);
 
 #ifdef DEBUG
-    DEBUG_PRINT("Saving settings to: "); DEBUG_PRINTLN(fileName);
+    DEBUG_PRINT("Saving state to: "); DEBUG_PRINTLN(fileName);
     char output[JSON_DOCUMENT_SIZE];
     serializeJson(doc, output);
     DEBUG_PRINTLN(output);
