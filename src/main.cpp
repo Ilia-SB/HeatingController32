@@ -229,6 +229,7 @@ void getConsumptionData(const char* rawData) {
         strncat(key, &idx, 1);
         //DEBUG_PRINT(key); DEBUG_PRINT(" ");
         if (doc.containsKey(key)) {
+            DEBUG_PRINTLN("Received consumption data");
             consumptionDataRecieved = true;
             currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
             consumptionDataReceived[phase] = millis();
@@ -251,6 +252,7 @@ void processCommand(char* item, char* command, char* payload) {
     char statusTopic[64];
     char val[32];
 
+    DEBUG_PRINT("Received command: ");DEBUG_PRINT(item);DEBUG_PRINT(" -> ");DEBUG_PRINT(command);DEBUG_PRINT(" : ");DEBUG_PRINTLN(payload);
     if (strcasecmp("settings", item) == 0) {
         strcpy(statusTopic, STATUS_TOPIC);
         strcat(statusTopic, "/settings/");
