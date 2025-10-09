@@ -1041,6 +1041,7 @@ void onOtaEnd(bool success) {
         while(!xSemaphoreTake(mutex, portMAX_DELAY)) {
             DEBUG_PRINT(".");
         }
+        DEBUG_PRINTLN();
         ESP.restart();
     } else {
         DEBUG_PRINTLN("Firmware update failed");
@@ -1619,10 +1620,10 @@ void setup()
     mutex = xSemaphoreCreateMutex();
 
     //stack size calculation based on empirical data
-    xTaskCreate(taskSystem, "System", 10 * configMINIMAL_STACK_SIZE - 20000, NULL, 1, &hndlSystem);
-    xTaskCreate(taskMain, "Main", 10 * configMINIMAL_STACK_SIZE - 24000, NULL, 1, &hndlMain);
-    xTaskCreate(taskEmergency, "Emergency", 10 * configMINIMAL_STACK_SIZE - 24000, NULL, 3, &hndlEmergency);
-    xTaskCreate(taskProcessHeaters, "ProcessHeaters", 10 * configMINIMAL_STACK_SIZE - 24000, NULL, 2, &hndlProcessHeaters);
+    xTaskCreate(taskSystem, "System", 4096, NULL, 1, &hndlSystem);
+    xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
+    xTaskCreate(taskEmergency, "Emergency", 4096, NULL, 3, &hndlEmergency);
+    xTaskCreate(taskProcessHeaters, "ProcessHeaters", 4096, NULL, 2, &hndlProcessHeaters);
 }
 
 void loop() {
