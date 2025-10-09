@@ -412,6 +412,7 @@ bool tcpConnect() {
 
     if (tcpClient.connect(settings.tcpUrl.c_str(), settings.tcpPort)) {
         Serial.println("TCP client connected.");
+        tcpClient.setNoDelay(true);
         return true;
     } else {
         Serial.println("TCP client connect failed.");
@@ -1360,6 +1361,7 @@ uint16_t calculateHeatersConsumption(uint8_t phase) {
 
 void taskSystem(void* pvParameters) {
     while(true) {
+        DEBUG_PRINT(">S>"); DEBUG_STACK;
         ElegantOTA.loop();
         if (flagRestartNow) {
             if (mqttClient.connected())
@@ -1375,6 +1377,7 @@ void taskSystem(void* pvParameters) {
         else {
             mqttConnect();
         }
+        DEBUG_PRINT("<S<"); DEBUG_STACK;
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
@@ -1389,20 +1392,22 @@ void taskEmergency(void* pvParameters) {
 
 void taskMain(void* pvParameters) {
     while(true) {
-        DEBUG_PRINT(">>>"); DEBUG_STACK;
+        DEBUG_PRINT(">M>"); DEBUG_STACK;
         requestTemperatures();
         vTaskDelay(READ_SENSORS_DELAY / portTICK_PERIOD_MS);
         readTemperatures();
         processHeaters();
+        DEBUG_PRINT("<M<"); DEBUG_STACK;
         vTaskDelay(TEMPERATURE_READ_INTERVAL / portTICK_PERIOD_MS);
-        DEBUG_PRINT("<<<"); DEBUG_STACK;
     }
 }
 
 void taskProcessHeaters(void* pvParameters) {
     vTaskSuspend(NULL);
     while(true) {
+        DEBUG_PRINT(">P>"); DEBUG_STACK;
         processHeaters();
+        DEBUG_PRINT("<P<"); DEBUG_STACK;
         vTaskSuspend(NULL);
     }
 }
