@@ -28,6 +28,8 @@ TaskHandle_t hndlMain;
 TaskHandle_t hndlEmergency;
 TaskHandle_t hndlProcessHeaters;
 
+SemaphoreHandle_t mutex = NULL;
+
 void taskSystem(void* pvParameters);
 void taskEmergency(void* pvParameters);
 void taskMain(void* pvParameters);
@@ -1361,23 +1363,26 @@ uint16_t calculateHeatersConsumption(uint8_t phase) {
 
 void taskSystem(void* pvParameters) {
     while(true) {
-        DEBUG_PRINT(">S>"); DEBUG_STACK;
-        ElegantOTA.loop();
-        if (flagRestartNow) {
-            if (mqttClient.connected())
-                mqttClient.disconnect();
-            if (tcpClient.connected())
-                tcpClient.stop();
-            vTaskDelay(500 / portTICK_PERIOD_MS);
-            ESP.restart();
+        if (xSemaphoreTake(mutex, portMAX_DELAY)) {
+            DEBUG_PRINT(">S>"); DEBUG_STACK;
+            ElegantOTA.loop();
+            if (flagRestartNow) {
+                if (mqttClient.connected())
+                    mqttClient.disconnect();
+                if (tcpClient.connected())
+                    tcpClient.stop();
+                vTaskDelay(500 / portTICK_PERIOD_MS);
+                ESP.restart();
+            }
+            if (mqttClient.connected()) {
+                mqttClient.loop();
+            }
+            else {
+                mqttConnect();
+            }
+            DEBUG_PRINT("<S<"); DEBUG_STACK;
+            xSemaphoreGive(mutex);
         }
-        if (mqttClient.connected()) {
-            mqttClient.loop();
-        }
-        else {
-            mqttConnect();
-        }
-        DEBUG_PRINT("<S<"); DEBUG_STACK;
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
@@ -1385,19 +1390,25 @@ void taskSystem(void* pvParameters) {
 void taskEmergency(void* pvParameters) {
     vTaskSuspend(NULL);
     while(true) {
-        processHeaters();
-        vTaskSuspend(NULL);
+        if (xSemaphoreTake(mutex, portMAX_DELAY)) {
+            processHeaters();
+            vTaskSuspend(NULL);
+            xSemaphoreGive(mutex);
+        }
     }
 }
 
 void taskMain(void* pvParameters) {
     while(true) {
-        DEBUG_PRINT(">M>"); DEBUG_STACK;
-        requestTemperatures();
-        vTaskDelay(READ_SENSORS_DELAY / portTICK_PERIOD_MS);
-        readTemperatures();
-        processHeaters();
-        DEBUG_PRINT("<M<"); DEBUG_STACK;
+        if (xSemaphoreTake(mutex, portMAX_DELAY)) {
+            DEBUG_PRINT(">M>"); DEBUG_STACK;
+            requestTemperatures();
+            vTaskDelay(READ_SENSORS_DELAY / portTICK_PERIOD_MS);
+            readTemperatures();
+            DEBUG_PRINT("<M<"); DEBUG_STACK;
+            xSemaphoreGive(mutex);
+        }
+        vTaskResume(hndlProcessHeaters);
         vTaskDelay(TEMPERATURE_READ_INTERVAL / portTICK_PERIOD_MS);
     }
 }
@@ -1405,9 +1416,12 @@ void taskMain(void* pvParameters) {
 void taskProcessHeaters(void* pvParameters) {
     vTaskSuspend(NULL);
     while(true) {
-        DEBUG_PRINT(">P>"); DEBUG_STACK;
-        processHeaters();
-        DEBUG_PRINT("<P<"); DEBUG_STACK;
+        if (xSemaphoreTake(mutex, portMAX_DELAY)) {
+            DEBUG_PRINT(">P>"); DEBUG_STACK;
+            processHeaters();
+            DEBUG_PRINT("<P<"); DEBUG_STACK;
+            xSemaphoreGive(mutex);
+        }
         vTaskSuspend(NULL);
     }
 }
@@ -1602,6 +1616,8 @@ void setup()
     }
 
     DEBUG_PRINTLN("Starting tasks...");
+    mutex = xSemaphoreCreateMutex();
+
     xTaskCreate(taskSystem, "System", 10 * configMINIMAL_STACK_SIZE, NULL, 1, &hndlSystem);
     xTaskCreate(taskMain, "Main", 10 * configMINIMAL_STACK_SIZE, NULL, 1, &hndlMain);
     xTaskCreate(taskEmergency, "Emergency", 10 * configMINIMAL_STACK_SIZE, NULL, 3, &hndlEmergency);
