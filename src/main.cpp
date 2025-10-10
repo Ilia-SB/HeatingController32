@@ -22,6 +22,7 @@
 #include <ESP32TimerInterrupt.h>
 #include <ElegantOTA.h>
 #include <esp_system.h>
+#include <time.h>
 
 TaskHandle_t hndlSystem;
 TaskHandle_t hndlMain;
@@ -938,6 +939,9 @@ void setDefaultSettings(Settings& settings) {
     settings.debugTcp = true;
     settings.tcpUrl = TCP_URL;
     settings.tcpPort = TCP_PORT;
+    settings.ntpServer = NTP_SERVER;
+    settings.gmtOffset = GMT_OFFSET_SEC;
+    settings.daylightOffset = DAYLIGHT_OFFSET_SEC;
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         settings.consumptionLimit[i] = CONSUMPTION_LIMITS[i];
     }
@@ -1013,6 +1017,9 @@ void saveSettings(Settings& settings) {
     doc[SETTINGS_DEBUG_TCP] = settings.debugTcp;
     doc[SETTINGS_TCP_URL] = settings.tcpUrl;
     doc[SETTINGS_TCP_PORT] = settings.tcpPort;
+    doc[SETTINGS_NTP_SERVER] = settings.ntpServer;
+    doc[SETTINGS_GMT_OFFSET] = settings.gmtOffset;
+    doc[SETTINGS_DAYLIGHT_OFFSET] = settings.daylightOffset;
     JsonArray consumptionLimit = doc.createNestedArray("consumptionLimit");
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         consumptionLimit.add(settings.consumptionLimit[i]);
@@ -1068,6 +1075,9 @@ void loadSettings(Settings& settings) {
         settings.debugTcp = doc.containsKey(SETTINGS_DEBUG_TCP) ? doc[SETTINGS_DEBUG_TCP].as<bool>() : true;
         settings.tcpUrl = doc.containsKey(SETTINGS_TCP_URL) ? doc[SETTINGS_TCP_URL].as<String>() : TCP_URL;
         settings.tcpPort = doc.containsKey(SETTINGS_TCP_PORT) ? doc[SETTINGS_TCP_PORT].as<uint16_t>() : TCP_PORT;
+        settings.ntpServer = doc.containsKey(SETTINGS_NTP_SERVER) ? doc[SETTINGS_NTP_SERVER].as<String>() : NTP_SERVER;
+        settings.gmtOffset = doc.containsKey(SETTINGS_GMT_OFFSET) ? doc[SETTINGS_GMT_OFFSET].as<long>() : GMT_OFFSET_SEC;
+        settings.daylightOffset = doc.containsKey(SETTINGS_DAYLIGHT_OFFSET) ? doc[SETTINGS_DAYLIGHT_OFFSET].as<int>() : DAYLIGHT_OFFSET_SEC;
         JsonArray consumptionLimit = doc[SETTINGS_CONSUMPTION_LIMIT];
         for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
             settings.consumptionLimit[i] = consumptionLimit.getElement(i).as<uint16_t>();
@@ -1601,6 +1611,113 @@ void taskMain(void* pvParameters) {
     }
 }
 
+void initNTP() {
+    debugPrint("Initializing NTP with server: "); debugPrintln(settings.ntpServer);
+    configTime(settings.gmtOffset, settings.daylightOffset, settings.ntpServer.c_str());
+}
+
+String getFormattedTimestamp() {
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+        return "No time sync";
+    }
+    char buffer[20];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeinfo);
+    return String(buffer);
+}
+
+uint32_t getNextBootNumber() {
+    if (!LittleFS.exists(REBOOT_LOG_FILE)) {
+        return 1;
+    }
+    
+    File file = LittleFS.open(REBOOT_LOG_FILE, FILE_READ);
+    if (!file) {
+        return 1;
+    }
+    
+    // Read the last line to get the last boot number
+    String lastLine = "";
+    while (file.available()) {
+        String line = file.readStringUntil('\n');
+        if (line.length() > 0) {
+            lastLine = line;
+        }
+    }
+    file.close();
+    
+    if (lastLine.length() == 0) {
+        return 1;
+    }
+    
+    // Parse boot number from format "N. [timestamp] reason"
+    int dotIndex = lastLine.indexOf('.');
+    if (dotIndex > 0) {
+        uint32_t lastBootNum = lastLine.substring(0, dotIndex).toInt();
+        return lastBootNum + 1;
+    }
+    
+    return 1;
+}
+
+void appendRebootEntry(const String& timestamp, uint32_t bootNum, const char* reason) {
+    File file = LittleFS.open(REBOOT_LOG_FILE, FILE_APPEND);
+    if (!file) {
+        debugPrintln("Failed to open reboot log for appending");
+        return;
+    }
+    String entry = String(bootNum) + ". [" + timestamp + "] " + reason;
+    file.println(entry);
+    file.close();
+    debugPrint("Reboot entry added: "); debugPrintln(entry);
+}
+
+void trimRebootHistory() {
+    if (!LittleFS.exists(REBOOT_LOG_FILE)) {
+        return;
+    }
+    
+    File file = LittleFS.open(REBOOT_LOG_FILE, FILE_READ);
+    if (!file) {
+        return;
+    }
+    
+    // Read all lines
+    String lines[MAX_REBOOT_HISTORY_ENTRIES + 10]; // Buffer for extra entries
+    int lineCount = 0;
+    while (file.available() && lineCount < (MAX_REBOOT_HISTORY_ENTRIES + 10)) {
+        lines[lineCount] = file.readStringUntil('\n');
+        if (lines[lineCount].length() > 0) {
+            lineCount++;
+        }
+    }
+    file.close();
+    
+    // If we have more than MAX_REBOOT_HISTORY_ENTRIES, keep only the last MAX_REBOOT_HISTORY_ENTRIES
+    if (lineCount > MAX_REBOOT_HISTORY_ENTRIES) {
+        debugPrint("Trimming reboot history from "); debugPrint(lineCount);
+        debugPrint(" to "); debugPrintln(MAX_REBOOT_HISTORY_ENTRIES);
+        
+        file = LittleFS.open(REBOOT_LOG_FILE, FILE_WRITE);
+        if (!file) {
+            debugPrintln("Failed to open reboot log for trimming");
+            return;
+        }
+        
+        int startIndex = lineCount - MAX_REBOOT_HISTORY_ENTRIES;
+        for (int i = startIndex; i < lineCount; i++) {
+            file.println(lines[i]);
+        }
+        file.close();
+    }
+}
+
+void manageRebootHistory(uint32_t bootNum, const char* reason) {
+    String timestamp = getFormattedTimestamp();
+    appendRebootEntry(timestamp, bootNum, reason);
+    trimRebootHistory();
+}
+
 const char* getResetReason() {
     esp_reset_reason_t reason = esp_reset_reason();
     switch (reason) {
@@ -1671,7 +1788,41 @@ void setup()
     }
     debugPrintln();debugPrint("HeatingController32 ");debugPrint(VERSION_SHORT);debugPrintln(" starting...");
     debugPrintln("Debug output enabled");
-    debugPrint("Last reboot reason: "); debugPrintln(getResetReason());
+    
+    // Get reboot reason
+    const char* resetReason = getResetReason();
+    debugPrint("Last reboot reason: "); debugPrintln(resetReason);
+    
+    // Get next boot number from reboot log
+    uint32_t bootNumber = getNextBootNumber();
+    debugPrint("Boot #"); debugPrintln(bootNumber);
+    
+    // Initialize NTP
+    initNTP();
+    
+    // Wait for time sync (non-blocking with timeout)
+    debugPrint("Waiting for NTP time sync");
+    unsigned long ntpStart = millis();
+    bool timeSynced = false;
+    while (millis() - ntpStart < 3000) {
+        struct tm timeinfo;
+        if (getLocalTime(&timeinfo)) {
+            timeSynced = true;
+            break;
+        }
+        debugPrint(".");
+        delay(500);
+    }
+    debugPrintln();
+    if (timeSynced) {
+        debugPrint("Time synced: "); debugPrintln(getFormattedTimestamp());
+    } else {
+        debugPrintln("NTP sync timeout - logging with 'No time sync'");
+    }
+    
+    // Manage reboot history
+    manageRebootHistory(bootNumber, resetReason);
+    
     debugPrintln();
 
     debugPrintln("Initializing with settings:");
@@ -1751,6 +1902,13 @@ void setup()
     server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest* request) {
         reboot(request);
     });
+    server.on("/reboot.log", HTTP_GET, [](AsyncWebServerRequest* request) {
+        if (LittleFS.exists(REBOOT_LOG_FILE)) {
+            request->send(LittleFS, REBOOT_LOG_FILE, "text/plain");
+        } else {
+            request->send(200, "text/plain", "No reboot history available");
+        }
+    });
 
     server.on("/files", HTTP_GET, [](AsyncWebServerRequest* request) {
         String html;
@@ -1817,7 +1975,6 @@ void setup()
     xTaskCreate(taskSystem, "System", 8192, NULL, 1, &hndlSystem);
     xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
     //TODO: reboot reason and number of reboots
-    //TODO: cleanup on reboot not working (TCP)
 }
 
 void loop() {

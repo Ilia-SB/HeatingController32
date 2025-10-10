@@ -70,4 +70,13 @@ static const uint16_t CONSUMPTION_LIMITS[NUMBER_OF_PHASES] = {5000, 5000, 5000};
 #define TEMPERATURE_READ_INTERVAL 30000L /*30s*/
 #define READ_SENSORS_DELAY 1000L /*ms*/
 
+//NTP
+static const char* NTP_SERVER = "pool.ntp.org";
+static const long GMT_OFFSET_SEC = 0;        // Default: UTC (0 seconds)
+static const int DAYLIGHT_OFFSET_SEC = 0;    // Default: no daylight saving
+
+//Reboot History
+#define REBOOT_LOG_FILE "/reboot.log"
+#define MAX_REBOOT_HISTORY_ENTRIES 50
+
 #endif /* CONFIG_H_ */
