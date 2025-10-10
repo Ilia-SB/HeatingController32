@@ -1365,11 +1365,21 @@ void taskSystem(void* pvParameters) {
             DEBUG_PRINT(">S>"); DEBUG_STACK;
             ElegantOTA.loop();
             if (flagRestartNow) {
-                if (mqttClient.connected())
+                // Gracefully disconnect MQTT
+                if (mqttClient.connected()) {
                     mqttClient.disconnect();
-                if (tcpClient.connected())
-                    tcpClient.stop();
-                vTaskDelay(500 / portTICK_PERIOD_MS);
+                }
+                
+                // Gracefully close TCP connection
+                if (tcpClient.connected()) {
+                    tcpClient.flush();  // Flush any pending data
+                    tcpClient.stop();   // Initiate TCP close (FIN)
+                }
+                
+                // Wait for TCP close handshake to complete
+                // TCP requires FIN/ACK/FIN/ACK sequence
+                vTaskDelay(2000 / portTICK_PERIOD_MS);
+                
                 ESP.restart();
             }
             if (mqttClient.connected()) {
