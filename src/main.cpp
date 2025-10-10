@@ -21,15 +21,14 @@
 #include <ArduinoJson.h>
 #include <ESP32TimerInterrupt.h>
 #include <ElegantOTA.h>
+#include <esp_system.h>
 
 TaskHandle_t hndlSystem;
 TaskHandle_t hndlMain;
-TaskHandle_t hndlEmergency;
 
 SemaphoreHandle_t mutex = NULL;
 
 void taskSystem(void* pvParameters);
-void taskEmergency(void* pvParameters);
 void taskMain(void* pvParameters);
 
 WiFiClient ethClient;
@@ -239,7 +238,7 @@ void getConsumptionData(const char* rawData) {
                 flagEmergency[phase] = false;
             }
             if(emergency) {
-                vTaskResume(hndlEmergency);
+                processHeaters();
             }
         }
     }
@@ -1383,17 +1382,6 @@ void taskSystem(void* pvParameters) {
     }
 }
 
-void taskEmergency(void* pvParameters) {
-    vTaskSuspend(NULL);
-    while(true) {
-        if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-            processHeaters();
-            xSemaphoreGive(mutex);
-            vTaskSuspend(NULL);
-        }
-    }
-}
-
 void taskMain(void* pvParameters) {
     while(true) {
         if (xSemaphoreTake(mutex, portMAX_DELAY)) {
@@ -1406,6 +1394,24 @@ void taskMain(void* pvParameters) {
             xSemaphoreGive(mutex);
         }
         vTaskDelay(TEMPERATURE_READ_INTERVAL / portTICK_PERIOD_MS);
+    }
+}
+
+const char* getResetReason() {
+    esp_reset_reason_t reason = esp_reset_reason();
+    switch (reason) {
+        case ESP_RST_UNKNOWN:    return "Unknown";
+        case ESP_RST_POWERON:    return "Power-on reset";
+        case ESP_RST_EXT:        return "External pin reset";
+        case ESP_RST_SW:         return "Software reset";
+        case ESP_RST_PANIC:      return "Exception/panic";
+        case ESP_RST_INT_WDT:    return "Interrupt watchdog";
+        case ESP_RST_TASK_WDT:   return "Task watchdog";
+        case ESP_RST_WDT:        return "Other watchdog";
+        case ESP_RST_DEEPSLEEP:  return "Deep sleep wake-up";
+        case ESP_RST_BROWNOUT:   return "Brownout reset";
+        case ESP_RST_SDIO:       return "SDIO reset";
+        default:                 return "Unknown";
     }
 }
 
@@ -1461,6 +1467,7 @@ void setup()
     }
     DEBUG_PRINTLN();DEBUG_PRINT("HeatingController32 ");DEBUG_PRINT(VERSION_SHORT);DEBUG_PRINTLN(" starting...");
     DEBUG_PRINTLN("Debug mode");
+    DEBUG_PRINT("Last reboot reason: "); DEBUG_PRINTLN(getResetReason());
     DEBUG_PRINTLN();
 
     DEBUG_PRINTLN("Initializing with settings:");
@@ -1604,7 +1611,6 @@ void setup()
     //stack size calculation based on empirical data
     xTaskCreate(taskSystem, "System", 4096, NULL, 1, &hndlSystem);
     xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
-    xTaskCreate(taskEmergency, "Emergency", 4096, NULL, 3, &hndlEmergency);
     //TODO: reboot reason and number of reboots
 }
 
