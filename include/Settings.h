@@ -9,9 +9,10 @@
 #define SETTINGS_CONSUMPTION_LIMIT  "consumptionLimit"
 #define SETTINGS_MQTT_URL           "mqttUrl"
 #define SETTINGS_MQTT_PORT          "mqttPort"
-#define SETTINGS_TCP_URL            "tcpUrl"
-#define SETTINGS_TCP_PORT           "tcpPort"
-#define SETTINGS_USE_TCP            "useTcp"
+#define SETTINGS_DEBUG_SERIAL       "debugSerial"
+#define SETTINGS_DEBUG_UDP          "debugUdp"
+#define SETTINGS_UDP_DEBUG_ADDRESS  "udpDebugAddress"
+#define SETTINGS_UDP_PORT           "udpPort"
 
 class Settings
 {
@@ -22,9 +23,10 @@ public:
     float hysteresis;
     String mqttUrl;
     uint16_t mqttPort;
-    String tcpUrl;
-    uint16_t tcpPort;
-    bool useTcp;
+    bool debugSerial;
+    bool debugUdp;
+    String udpDebugAddress;
+    uint16_t udpPort;
 //functions
 public:
     bool setHysteresis(const char* val);

@@ -9,27 +9,29 @@
 #ifndef DEBUGPRINT_H_
 #define DEBUGPRINT_H_
 
+#include <Arduino.h>
 
-#if defined(DEBUG)
-    #define DEBUG_PRINT(x)			Serial.print (x); if(tcpClient.connected()) tcpClient.print(x);
-    #define DEBUG_PRINTDEC(x)		Serial.print (x, DEC); if(tcpClient.connected()) tcpClient.print(x, DEC);
-    #define DEBUG_PRINTHEX(x)		Serial.print (x, HEX); if(tcpClient.connected()) tcpClient.print(x, HEX);
-    #define DEBUG_PRINTLN(x)		Serial.println (x); if(tcpClient.connected()) tcpClient.println(x);
-    #define DEBUG_PRINT_ARRAY(x, len)   for(uint8_t i=0; i<len; i++) {Serial.print(x[i]);Serial.print(" "); if(tcpClient.connected()) {tcpClient.print(x[i]); tcpClient.print(" ");}}
-    //#define DEBUG_MEMORY()          Serial.println();Serial.print(F("!!! Free memory: "));Serial.print(freeMemory());Serial.println(F(" !!!"));Serial.println();if(tcpClient.connected()) {tcpClient.print("!!! Free memory: "); tcpClient.println(freeMemory());}
-    #define DEBUG_STACK             Serial.print("Free stack: "); Serial.println(uxTaskGetStackHighWaterMark(NULL)); if(tcpClient.connected()) {tcpClient.print("Free stack: "); tcpClient.println(uxTaskGetStackHighWaterMark(NULL));}
-#else
-    #define DEBUG_PRINT(x)
-    #define DEBUG_PRINTDEC(x)
-    #define DEBUG_PRINTHEX(x)
-    #define DEBUG_PRINTLN(x)
-    #define DEBUG_MEMORY()
-#endif
+// Debug functions are now implemented as runtime functions in main.cpp
+// Debug output can be configured via web interface (serial and UDP)
 
-#if defined(MQTT_DEBUG)
-    #define DEBUG_PRINT_MQTT(x)          if(mqttClient.connected()) mqttClient.publish("test/heating/debug", x, false)
-#else
-    #define DEBUG_PRINT_MQTT(x)
-#endif
+void debugPrint(const String& msg);
+void debugPrint(const char* msg);
+void debugPrint(int val);
+void debugPrint(unsigned int val);
+void debugPrint(long val);
+void debugPrint(unsigned long val);
+void debugPrint(float val);
+void debugPrintln();
+void debugPrintln(const String& msg);
+void debugPrintln(const char* msg);
+void debugPrintln(int val);
+void debugPrintln(unsigned int val);
+void debugPrintln(long val);
+void debugPrintln(unsigned long val);
+void debugPrintln(float val);
+void debugPrintDec(int val);
+void debugPrintHex(int val);
+void debugPrintArray(uint8_t* arr, uint8_t len);
+void debugStack();
 
 #endif /* DEBUGPRINT_H_ */

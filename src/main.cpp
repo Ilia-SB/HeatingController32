@@ -16,6 +16,7 @@
 #include <DallasTemperature.h>
 #include <ETH.h>
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <ESPAsyncWebServer.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
@@ -32,7 +33,7 @@ void taskSystem(void* pvParameters);
 void taskMain(void* pvParameters);
 
 WiFiClient ethClient;
-WiFiClient tcpClient;
+WiFiUDP udpClient;
 static bool ethConnected = false;
 
 AsyncWebServer server(80);
@@ -112,7 +113,6 @@ void setPorts(boolean[]);
 void processCommand(char*, char*, char*);
 void mqttCallback(char*, byte*, const unsigned int);
 bool mqttConnect(void);
-bool tcpConnect(void);
 void WiFiEvent(WiFiEvent_t);
 String webServerPlaceholderProcessor(const String&);
 void oneWireBlinkDetectedSensors(uint8_t);
@@ -145,7 +145,6 @@ void onOtaEnd(bool);
 
 void heaterItemOutputCallback(uint8_t, bool);
 void heaterItemNotificationCallback(HeaterItem& heater);
-
 
 void ethernetLed(uint8_t mode) {
     digitalWrite(ETHERNET_LED, mode);
@@ -207,6 +206,279 @@ void heaterItemNotificationCallback(HeaterItem& heater) {
     reportHeaterState(heater);
 }
 
+// Debug output functions
+void debugPrint(const String& msg) {
+    if (settings.debugSerial) {
+        Serial.print(msg);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.print(msg);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrint(const char* msg) {
+    if (settings.debugSerial) {
+        Serial.print(msg);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.print(msg);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrint(int val) {
+    if (settings.debugSerial) {
+        Serial.print(val);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.print(val);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrint(unsigned int val) {
+    if (settings.debugSerial) {
+        Serial.print(val);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.print(val);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrint(long val) {
+    if (settings.debugSerial) {
+        Serial.print(val);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.print(val);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrint(unsigned long val) {
+    if (settings.debugSerial) {
+        Serial.print(val);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.print(val);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrint(float val) {
+    if (settings.debugSerial) {
+        Serial.print(val);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.print(val);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrintln() {
+    if (settings.debugSerial) {
+        Serial.println();
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.println();
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrintln(const String& msg) {
+    if (settings.debugSerial) {
+        Serial.println(msg);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.println(msg);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrintln(const char* msg) {
+    if (settings.debugSerial) {
+        Serial.println(msg);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.println(msg);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrintln(int val) {
+    if (settings.debugSerial) {
+        Serial.println(val);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.println(val);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrintln(unsigned int val) {
+    if (settings.debugSerial) {
+        Serial.println(val);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.println(val);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrintln(long val) {
+    if (settings.debugSerial) {
+        Serial.println(val);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.println(val);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrintln(unsigned long val) {
+    if (settings.debugSerial) {
+        Serial.println(val);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.println(val);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrintln(float val) {
+    if (settings.debugSerial) {
+        Serial.println(val);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.println(val);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrintDec(int val) {
+    if (settings.debugSerial) {
+        Serial.print(val, DEC);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.print(val, DEC);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrintHex(int val) {
+    if (settings.debugSerial) {
+        Serial.print(val, HEX);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.print(val, HEX);
+            udpClient.endPacket();
+        }
+    }
+}
+
+void debugPrintArray(uint8_t* arr, uint8_t len) {
+    for (uint8_t i = 0; i < len; i++) {
+        if (settings.debugSerial) {
+            Serial.print(arr[i]);
+            Serial.print(" ");
+        }
+        if (settings.debugUdp && ethConnected) {
+            IPAddress udpAddress;
+            if (udpAddress.fromString(settings.udpDebugAddress)) {
+                udpClient.beginPacket(udpAddress, settings.udpPort);
+                udpClient.print(arr[i]);
+                udpClient.print(" ");
+                udpClient.endPacket();
+            }
+        }
+    }
+}
+
+void debugStack() {
+    String msg = "Free stack: ";
+    msg += String(uxTaskGetStackHighWaterMark(NULL));
+    if (settings.debugSerial) {
+        Serial.println(msg);
+    }
+    if (settings.debugUdp && ethConnected) {
+        IPAddress udpAddress;
+        if (udpAddress.fromString(settings.udpDebugAddress)) {
+            udpClient.beginPacket(udpAddress, settings.udpPort);
+            udpClient.println(msg);
+            udpClient.endPacket();
+        }
+    }
+}
+
 void setPorts(boolean ports[NUMBER_OF_PORTS]) {
     uint16_t output = 0;
     for (uint8_t i=0; i<NUMBER_OF_PORTS; i++) {
@@ -224,14 +496,14 @@ void getConsumptionData(const char* rawData) {
         char key[5] = "POW";
         char idx = phase + 1 + 48; //convert (phase+1) to ascii
         strncat(key, &idx, 1);
-        //DEBUG_PRINT(key); DEBUG_PRINT(" ");
+        //debugPrint(key); debugPrint(" ");
         if (doc.containsKey(key)) {
-            DEBUG_PRINTLN("Received consumption data");
+            debugPrintln("Received consumption data");
             flagConsumptionDataReceived = true;
             currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
             consumptionDataReceived[phase] = millis();
             bool emergency = false;
-            //DEBUG_PRINTLN(currentConsumption[phase]);
+            //debugPrintln(currentConsumption[phase]);
             if (currentConsumption[phase] > settings.consumptionLimit[phase]) {
                 flagEmergency[phase] = true;
                 emergency = true;
@@ -250,7 +522,7 @@ void processCommand(char* item, char* command, char* payload) {
     char statusTopic[64];
     char val[32];
 
-    DEBUG_PRINT("Received command: ");DEBUG_PRINT(item);DEBUG_PRINT(" -> ");DEBUG_PRINT(command);DEBUG_PRINT(" : ");DEBUG_PRINTLN(payload);
+    debugPrint("Received command: ");debugPrint(item);debugPrint(" -> ");debugPrint(command);debugPrint(" : ");debugPrintln(payload);
     if (strcasecmp("settings", item) == 0) {
         strcpy(statusTopic, STATUS_TOPIC);
         strcat(statusTopic, "/settings/");
@@ -404,21 +676,6 @@ void mqttCallback(char* topic, byte* payload, const unsigned int len) {
     processCommand(item, command, payloadCopy);
 }
 
-bool tcpConnect() {
-    if (!ethConnected) {
-        return false;
-    }
-
-    if (tcpClient.connect(settings.tcpUrl.c_str(), settings.tcpPort)) {
-        Serial.println("TCP client connected.");
-        tcpClient.setNoDelay(true);
-        return true;
-    } else {
-        Serial.println("TCP client connect failed.");
-        return false;
-    }
-}
-
 bool mqttConnect() {
     if (!ethConnected) {
         mqttLed(LOW);
@@ -428,7 +685,7 @@ bool mqttConnect() {
     mqttClient.setServer(settings.mqttUrl.c_str(), settings.mqttPort);
     mqttClient.setCallback(mqttCallback);
     if (mqttClient.connect(HOSTNAME, LWT_TOPIC, 0, true, "Offline")) {
-        DEBUG_PRINTLN("MQTT connected");
+        debugPrintln("MQTT connected");
         mqttClient.subscribe(COMMAND_TOPIC.c_str());
         mqttClient.subscribe(ENERGY_METER_TOPIC);
         mqttClient.publish(LWT_TOPIC, "Online", true);
@@ -439,7 +696,7 @@ bool mqttConnect() {
         return true;
     }
     else {
-        DEBUG_PRINTLN("MQTT connect failed");
+        debugPrintln("MQTT connect failed");
         ISR_Timer.disable(TIMER_NUM_MQTT_LED_BLINK);
         mqttLed(LOW);
         return false;
@@ -449,25 +706,25 @@ bool mqttConnect() {
 void WiFiEvent(WiFiEvent_t event) {
     switch (event) {
     case ARDUINO_EVENT_ETH_START:
-        DEBUG_PRINTLN("ETH Started");
+        debugPrintln("ETH Started");
         ETH.setHostname(HOSTNAME);
         break;
     case ARDUINO_EVENT_ETH_CONNECTED:
-        DEBUG_PRINTLN("ETH Connected");
+        debugPrintln("ETH Connected");
         ethConnected = true;
         ISR_Timer.changeInterval(TIMER_NUM_ETHERNET_LED_BLINK, LED_BLINK_MEDIUM);
         break;
     case ARDUINO_EVENT_ETH_GOT_IP:
-        DEBUG_PRINT("ETH MAC: ");
-        DEBUG_PRINT(ETH.macAddress());
-        DEBUG_PRINT(", IPv4: ");
-        DEBUG_PRINT(ETH.localIP());
+        debugPrint("ETH MAC: ");
+        debugPrint(ETH.macAddress());
+        debugPrint(", IPv4: ");
+        debugPrint(ETH.localIP());
         if (ETH.fullDuplex()) {
-            DEBUG_PRINT(", FULL_DUPLEX");
+            debugPrint(", FULL_DUPLEX");
         }
-        DEBUG_PRINT(", ");
-        DEBUG_PRINT(ETH.linkSpeed());
-        DEBUG_PRINTLN("Mbps");
+        debugPrint(", ");
+        debugPrint(ETH.linkSpeed());
+        debugPrintln("Mbps");
         ethConnected = true;
         ISR_Timer.disable(TIMER_NUM_ETHERNET_LED_BLINK);
         ethernetLed(HIGH);
@@ -635,14 +892,17 @@ String webServerPlaceholderProcessor(const String& placeholder) {
         retValue += "<tr><td class=\"name\">MQTT port</td><td class=\"value\"><input type=\"text\" name=\"mqttPort\" value=\"";
         retValue += String(settings.mqttPort);
         retValue += "\"></td></tr>";
-        retValue += "<tr><td class=\"name\">TCP url</td><td class=\"value\"><input type=\"text\" name=\"tcpUrl\" value=\"";
-        retValue += settings.tcpUrl;
+        retValue += "<tr><td class=\"name\">UDP debug address</td><td class=\"value\"><input type=\"text\" name=\"udpDebugAddress\" value=\"";
+        retValue += settings.udpDebugAddress;
         retValue += "\"></td></tr>";
-        retValue += "<tr><td class=\"name\">TCP port</td><td class=\"value\"><input type=\"text\" name=\"tcpPort\" value=\"";
-        retValue += String(settings.tcpPort);
+        retValue += "<tr><td class=\"name\">UDP port</td><td class=\"value\"><input type=\"text\" name=\"udpPort\" value=\"";
+        retValue += String(settings.udpPort);
         retValue += "\"></td></tr>";
-        retValue += "<tr><td class=\"name\">Use TCP</td><td class=\"value\"><input type=\"checkbox\" name=\"useTcp\"";
-        retValue += settings.useTcp?" checked":"";
+        retValue += "<tr><td class=\"name\">Serial debug</td><td class=\"value\"><input type=\"checkbox\" name=\"debugSerial\"";
+        retValue += settings.debugSerial?" checked":"";
+        retValue += "></td></tr>";
+        retValue += "<tr><td class=\"name\">UDP debug</td><td class=\"value\"><input type=\"checkbox\" name=\"debugUdp\"";
+        retValue += settings.debugUdp?" checked":"";
         retValue += "></td></tr>";
         for (uint8_t i=1; i<NUMBER_OF_PHASES+1; i++) {
             retValue += "<tr><td class=\"name\">Phase ";
@@ -709,22 +969,22 @@ void oneWireBlinkDetectedSensors(uint8_t sensorsCount) {
 }
 
 void requestTemperatures() {
-    DEBUG_PRINTLN("Requesting temperatures...");
+    debugPrintln("Requesting temperatures...");
     oneWireLed(HIGH);
     ISR_Timer.setTimeout(LED_BLINK_FAST, oneWireLedOff); //turn the led off for a while to indicate activity
     sensors.requestTemperatures();
 }
 
 void readTemperatures() {
-    DEBUG_PRINTLN("Reading temperatures...");
+    debugPrintln("Reading temperatures...");
     for (uint8_t i = 0; i < NUMBER_OF_HEATERS; i++) {
         if (heaterItems[i].getIsConnected() == true) {
             float _temperature = sensors.getTempC(heaterItems[i].getSensorAddress());
             if ((int)_temperature != HeaterItem::SENSOR_NOT_CONNECTED && (int)_temperature != HeaterItem::SENSOR_READ_ERROR) {
                 heaterItems[i].setTemperature(_temperature);
-                DEBUG_PRINT(heaterItems[i].getName());DEBUG_PRINT(": ");DEBUG_PRINTLN(_temperature);
+                debugPrint(heaterItems[i].getName());debugPrint(": ");debugPrintln(_temperature);
             } else {
-                DEBUG_PRINT("Error reading temperature for item ");DEBUG_PRINTLN(heaterItems[i].getName());
+                debugPrint("Error reading temperature for item ");debugPrintln(heaterItems[i].getName());
                 heaterItems[i].tempReadError();
                 if(heaterItems[i].getTempReadErrors() >= MAX_TEMP_READ_ERRORS) {
                     StaticJsonDocument<JSON_DOCUMENT_SIZE_SMALL> doc;
@@ -739,7 +999,7 @@ void readTemperatures() {
                     mqttTopic += "/STATE";
 
                     mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), false);
-                    DEBUG_PRINT("Heater ");DEBUG_PRINT(heaterItems[i].getName());DEBUG_PRINT(": number of temperature read errors since last report: ");DEBUG_PRINTLN(heaterItems[i].getTempReadErrors());
+                    debugPrint("Heater ");debugPrint(heaterItems[i].getName());debugPrint(": number of temperature read errors since last report: ");debugPrintln(heaterItems[i].getTempReadErrors());
                     heaterItems[i].setTempReadErrors(0); //reset counter
                 }
             }
@@ -754,9 +1014,10 @@ void setDefaultSettings(Settings& settings) {
     settings.hysteresis = DEFAULT_HYSTERESIS;
     settings.mqttUrl = MQTT_URL;
     settings.mqttPort = MQTT_PORT;
-    settings.tcpUrl = TCP_URL;
-    settings.tcpPort = TCP_PORT;
-    settings.useTcp = false;
+    settings.debugSerial = true;
+    settings.debugUdp = true;
+    settings.udpDebugAddress = UDP_DEBUG_ADDRESS;
+    settings.udpPort = UDP_PORT;
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         settings.consumptionLimit[i] = CONSUMPTION_LIMITS[i];
     }
@@ -828,20 +1089,19 @@ void saveSettings(Settings& settings) {
     doc[SETTINGS_HYSTERESIS] = settings.hysteresis;
     doc[SETTINGS_MQTT_URL] = settings.mqttUrl;
     doc[SETTINGS_MQTT_PORT] = settings.mqttPort;
-    doc[SETTINGS_TCP_URL] = settings.tcpUrl;
-    doc[SETTINGS_TCP_PORT] = settings.tcpPort;
-    doc[SETTINGS_USE_TCP] = settings.useTcp;
+    doc[SETTINGS_DEBUG_SERIAL] = settings.debugSerial;
+    doc[SETTINGS_DEBUG_UDP] = settings.debugUdp;
+    doc[SETTINGS_UDP_DEBUG_ADDRESS] = settings.udpDebugAddress;
+    doc[SETTINGS_UDP_PORT] = settings.udpPort;
     JsonArray consumptionLimit = doc.createNestedArray("consumptionLimit");
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         consumptionLimit.add(settings.consumptionLimit[i]);
     }
 
-#ifdef DEBUG
-    DEBUG_PRINT("Saving settings to: "); DEBUG_PRINTLN(fileName);
+    debugPrint("Saving settings to: "); debugPrintln(fileName);
     char output[JSON_DOCUMENT_SIZE_SETTINGS];
     serializeJson(doc, output);
-    DEBUG_PRINTLN(output);
-#endif
+    debugPrintln(output);
     serializeJson(doc, file);
     file.close();
 }
@@ -853,12 +1113,10 @@ void saveState(HeaterItem& heaterItem) {
     StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
     itemToJson(heaterItem, doc, false);
 
-#ifdef DEBUG
-    DEBUG_PRINT("Saving state to: "); DEBUG_PRINTLN(fileName);
+    debugPrint("Saving state to: "); debugPrintln(fileName);
     char output[JSON_DOCUMENT_SIZE];
     serializeJson(doc, output);
-    DEBUG_PRINTLN(output);
-#endif
+    debugPrintln(output);
 
     serializeJson(doc, file);
     file.close();
@@ -877,16 +1135,19 @@ void loadSettings(Settings& settings) {
         deserializeJson(doc, file);
 
         if (!doc.containsKey(SETTINGS_SETTINGS_VERSION) || doc[SETTINGS_SETTINGS_VERSION] != SETTINGS_VERSION) {
-            DEBUG_PRINTLN("Settings version mismatch.");
+            debugPrintln("Settings version mismatch.");
             deleteSettings();
+            setDefaultSettings(settings);
+            return;
         }
 
         settings.hysteresis = doc[SETTINGS_HYSTERESIS].as<float>();
         settings.mqttUrl = doc[SETTINGS_MQTT_URL].as<String>();
         settings.mqttPort = doc[SETTINGS_MQTT_PORT].as<uint16_t>();
-        settings.tcpUrl = doc[SETTINGS_TCP_URL].as<String>();
-        settings.tcpPort = doc[SETTINGS_TCP_PORT].as<uint16_t>();
-        settings.useTcp = doc[SETTINGS_USE_TCP].as<bool>();
+        settings.debugSerial = doc.containsKey(SETTINGS_DEBUG_SERIAL) ? doc[SETTINGS_DEBUG_SERIAL].as<bool>() : true;
+        settings.debugUdp = doc.containsKey(SETTINGS_DEBUG_UDP) ? doc[SETTINGS_DEBUG_UDP].as<bool>() : true;
+        settings.udpDebugAddress = doc.containsKey(SETTINGS_UDP_DEBUG_ADDRESS) ? doc[SETTINGS_UDP_DEBUG_ADDRESS].as<String>() : UDP_DEBUG_ADDRESS;
+        settings.udpPort = doc.containsKey(SETTINGS_UDP_PORT) ? doc[SETTINGS_UDP_PORT].as<uint16_t>() : UDP_PORT;
         JsonArray consumptionLimit = doc[SETTINGS_CONSUMPTION_LIMIT];
         for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
             settings.consumptionLimit[i] = consumptionLimit.getElement(i).as<uint16_t>();
@@ -895,7 +1156,7 @@ void loadSettings(Settings& settings) {
 }
 
 void deleteSettings() {
-    DEBUG_PRINTLN("Deleting global settings.");
+    debugPrintln("Deleting global settings.");
     String fileName;
     getSettingsFilename(fileName);
     LittleFS.remove(fileName);
@@ -903,7 +1164,7 @@ void deleteSettings() {
         String fileName;
         getItemFilename(i, fileName);
         if (LittleFS.exists(fileName)) {
-            DEBUG_PRINT("Deleting settings for ");DEBUG_PRINT(fileName);DEBUG_PRINTLN(".");
+            debugPrint("Deleting settings for ");debugPrint(fileName);debugPrintln(".");
             LittleFS.remove(fileName);
         }
     }
@@ -954,16 +1215,21 @@ void processSettingsForm(AsyncWebServerRequest* request) {
         if (request->hasParam(SETTINGS_MQTT_PORT, true)) {
             settings.mqttPort = request->getParam(SETTINGS_MQTT_PORT, true)->value().toInt();
         }
-        if (request->hasParam(SETTINGS_TCP_URL, true)) {
-            settings.tcpUrl = request->getParam(SETTINGS_TCP_URL, true)->value();
+        if (request->hasParam(SETTINGS_UDP_DEBUG_ADDRESS, true)) {
+            settings.udpDebugAddress = request->getParam(SETTINGS_UDP_DEBUG_ADDRESS, true)->value();
         }
-        if (request->hasParam(SETTINGS_TCP_PORT, true)) {
-            settings.tcpPort = request->getParam(SETTINGS_TCP_PORT, true)->value().toInt();
+        if (request->hasParam(SETTINGS_UDP_PORT, true)) {
+            settings.udpPort = request->getParam(SETTINGS_UDP_PORT, true)->value().toInt();
         }
-        if (request->hasParam(SETTINGS_USE_TCP, true)) { //if checkbox checked, request has param, otherwise not. no need to check the value
-            settings.useTcp = true;
+        if (request->hasParam(SETTINGS_DEBUG_SERIAL, true)) {
+            settings.debugSerial = true;
         } else {
-            settings.useTcp = false;
+            settings.debugSerial = false;
+        }
+        if (request->hasParam(SETTINGS_DEBUG_UDP, true)) {
+            settings.debugUdp = true;
+        } else {
+            settings.debugUdp = false;
         }
         for (uint8_t i=1; i<NUMBER_OF_PHASES+1; i++) {
             String paramName = "phase_";
@@ -1030,15 +1296,15 @@ void reboot(AsyncWebServerRequest* request) {
 }
 
 void onOtaStart() {
-    DEBUG_PRINTLN("Starting firmware update...");
+    debugPrintln("Starting firmware update...");
 }
 
 void onOtaEnd(bool success) {
     if (success) {
-        DEBUG_PRINTLN("Firmware update successful");
+        debugPrintln("Firmware update successful");
         flagRestartNow = true;
     } else {
-        DEBUG_PRINTLN("Firmware update failed");
+        debugPrintln("Firmware update failed");
     }
 }
 
@@ -1092,7 +1358,7 @@ void reportTemperatures() {
 }
 
 void reportHeatersState() {
-    DEBUG_PRINTLN("Reporting heaters state...");
+    debugPrintln("Reporting heaters state...");
     for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
         reportHeaterState(heaterItems[i]);
     }
@@ -1129,7 +1395,7 @@ void reportHeaterState(HeaterItem& heater) {
 }
 
 void initHeaters() {
-    DEBUG_PRINTLN("Initializing heaters...");
+    debugPrintln("Initializing heaters...");
     for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
         heaterItems[i].setAddress(i);
         initHeater(heaterItems[i]);
@@ -1141,7 +1407,7 @@ void initHeaters() {
     reportHeatersState();
     processHeaters();
     heatersInitialized = true;
-    DEBUG_PRINTLN("Heaters initialized");
+    debugPrintln("Heaters initialized");
 }
 
 void initHeater(HeaterItem& heater) {
@@ -1189,28 +1455,28 @@ bool checkSensorConfigured(DeviceAddress* sensor) {
 }
 
 void processHeatersOutput(HeaterItem* heater) {
-    DEBUG_PRINT("| ");DEBUG_PRINT(heater->getName());DEBUG_PRINT("\t| ");DEBUG_PRINT(heater->getIsAuto()?"Auto  ":"Manual");DEBUG_PRINT("\t| ");DEBUG_PRINT(String(heater->getTemperature(),2));
-    DEBUG_PRINT("\t| ");DEBUG_PRINT(heater->getTargetTemperature());DEBUG_PRINT("\t| ");DEBUG_PRINT(heater->getDelta());DEBUG_PRINT("\t| ");DEBUG_PRINT(heater->getPowerConsumption());
-    DEBUG_PRINT("\t| ");DEBUG_PRINT(heater->getActualState()?"On":"Off");DEBUG_PRINT("\t| ");DEBUG_PRINT(heater->getWantsOn()?"Yes":"No");DEBUG_PRINT("\t| ");
+    debugPrint("| ");debugPrint(heater->getName());debugPrint("\t| ");debugPrint(heater->getIsAuto()?"Auto  ":"Manual");debugPrint("\t| ");debugPrint(String(heater->getTemperature(),2));
+    debugPrint("\t| ");debugPrint(heater->getTargetTemperature());debugPrint("\t| ");debugPrint(heater->getDelta());debugPrint("\t| ");debugPrint(heater->getPowerConsumption());
+    debugPrint("\t| ");debugPrint(heater->getActualState()?"On":"Off");debugPrint("\t| ");debugPrint(heater->getWantsOn()?"Yes":"No");debugPrint("\t| ");
 }
 
 void processHeaters() {
     if (flagRestartNow)
         return;
-    DEBUG_PRINTLN("Processing heaters...");
+    debugPrintln("Processing heaters...");
     for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
-        DEBUG_PRINT("Phase "); DEBUG_PRINT(phase + 1);
+        debugPrint("Phase "); debugPrint(phase + 1);
         int16_t availablePower = 0;
         bool usingEstimatedConsumption = false;
         if (millis() - consumptionDataReceived[phase] < 5000) { //if data from the energy meter is not older than 5 sec.
-            DEBUG_PRINT(". Using measured power consumption. ");
+            debugPrint(". Using measured power consumption. ");
             availablePower = settings.consumptionLimit[phase] - currentConsumption[phase];
-            DEBUG_PRINT("Available power: ");DEBUG_PRINT(availablePower);DEBUG_PRINT(" = ");DEBUG_PRINT(settings.consumptionLimit[phase]);DEBUG_PRINT(" - ");DEBUG_PRINT(currentConsumption[phase]);
+            debugPrint("Available power: ");debugPrint(availablePower);debugPrint(" = ");debugPrint(settings.consumptionLimit[phase]);debugPrint(" - ");debugPrint(currentConsumption[phase]);
         } else {
-            DEBUG_PRINT(". Using estimated power consumption (");DEBUG_PRINT(millis() - consumptionDataReceived[phase]);DEBUG_PRINT("ms since last power reading). ")
+            debugPrint(". Using estimated power consumption (");debugPrint(millis() - consumptionDataReceived[phase]);debugPrint("ms since last power reading). ");
             availablePower = settings.consumptionLimit[phase] - calculateHeatersConsumption(phase);
             usingEstimatedConsumption = true;
-            DEBUG_PRINT("Available power: ");DEBUG_PRINT(availablePower);DEBUG_PRINT(" = ");DEBUG_PRINT(settings.consumptionLimit[phase]);DEBUG_PRINT(" - ");DEBUG_PRINT(calculateHeatersConsumption(phase));
+            debugPrint("Available power: ");debugPrint(availablePower);debugPrint(" = ");debugPrint(settings.consumptionLimit[phase]);debugPrint(" - ");debugPrint(calculateHeatersConsumption(phase));
             if (availablePower < 0) {
                 flagEmergency[phase] = true;
             }
@@ -1232,42 +1498,42 @@ void processHeaters() {
         HeaterItem::sortHeaters(manualHeaters, manualHeatersNum);
         HeaterItem::sortHeaters(autoHeaters, autoHeatersNum);
         
-        DEBUG_PRINT(". Auto heaters count: ");DEBUG_PRINT(autoHeatersNum);DEBUG_PRINT(", manual heaters count: ");DEBUG_PRINTLN(manualHeatersNum);
+        debugPrint(". Auto heaters count: ");debugPrint(autoHeatersNum);debugPrint(", manual heaters count: ");debugPrintln(manualHeatersNum);
 
         //turn off
         //manual heaters
-        DEBUG_PRINTLN("Manual -> Off");
+        debugPrintln("Manual -> Off");
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
             processHeatersOutput(heater);
             if (heater->getActualState() == true && heater->getWantsOn() == false) {
                 heater->setActualState(false);
                 availablePower += heater->getPowerConsumption();
-                DEBUG_PRINT("turned OFF by user.");
+                debugPrint("turned OFF by user.");
             }
-            DEBUG_PRINTLN();
+            debugPrintln();
         }
         //auto heaters
-        DEBUG_PRINTLN("Auto -> Off");
+        debugPrintln("Auto -> Off");
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
             processHeatersOutput(heater);
             if (heater->getActualState() == true && heater->getWantsOn() == false) {
                 heater->setActualState(false);
                 availablePower += heater->getPowerConsumption();
-                DEBUG_PRINT("turned OFF. Target temp reached.");
+                debugPrint("turned OFF. Target temp reached.");
             } else {
-                DEBUG_PRINT("nothing to do.");
+                debugPrint("nothing to do.");
             }
-            DEBUG_PRINTLN();
+            debugPrintln();
         }
         //emergency
         if (flagEmergency[phase]) {
-            DEBUG_PRINTLN("Phase is in emergency state");
+            debugPrintln("Phase is in emergency state");
             /*
             if (usingEstimatedConsumption == false) {
                 if (consumptionDataReceived[phase] < emergencyHandled[phase]) {
-                    DEBUG_PRINTLN("No new consumption data received since last emergency. Not taking actions.");
+                    debugPrintln("No new consumption data received since last emergency. Not taking actions.");
                     flagEmergency[phase] = false;
                     return;
                 }
@@ -1275,7 +1541,7 @@ void processHeaters() {
             */
 
             //auto heaters
-            DEBUG_PRINTLN("Emergency auto -> Off");
+            debugPrintln("Emergency auto -> Off");
             HeaterItem::sortHeatersByPowerConsumption(autoHeaters, autoHeatersNum);
             for (uint8_t i=autoHeatersNum; (availablePower < 0) && (i-- > 0);) {
                 HeaterItem* heater = autoHeaters[i];
@@ -1283,12 +1549,12 @@ void processHeaters() {
                 if (heater->getActualState() == true) {
                     heater->setActualState(false);
                     availablePower += heater->getPowerConsumption();
-                    DEBUG_PRINT("turned OFF. Not enough power.");
+                    debugPrint("turned OFF. Not enough power.");
                 }
-                DEBUG_PRINTLN();
+                debugPrintln();
             }
             //manual heaters
-            DEBUG_PRINTLN("Emergency manual -> Off");
+            debugPrintln("Emergency manual -> Off");
             HeaterItem::sortHeatersByPowerConsumption(manualHeaters, manualHeatersNum);
             for (uint8_t i=manualHeatersNum; (availablePower < 0) && (i-- > 0);) {
                 HeaterItem* heater = manualHeaters[i];
@@ -1296,24 +1562,24 @@ void processHeaters() {
                 if (heater->getActualState() == true) {
                     heater->setActualState(false);
                     availablePower += heater->getPowerConsumption();
-                    DEBUG_PRINT("turned OFF. Not enough power.");
+                    debugPrint("turned OFF. Not enough power.");
                 }
-                DEBUG_PRINTLN();
+                debugPrintln();
             }
             emergencyHandled[phase] = millis();
             flagEmergency[phase] = false;
-            DEBUG_PRINT("Emergency handled. Available power: ");DEBUG_PRINTLN(availablePower);
+            debugPrint("Emergency handled. Available power: ");debugPrintln(availablePower);
             //continue;
         }
 
         if (availablePower < 0) {
-            DEBUG_PRINTLN("Available power is below 0. Makes no sense to continue.");
+            debugPrintln("Available power is below 0. Makes no sense to continue.");
             continue;
         }
 
         //turn on
         //manual heaters
-        DEBUG_PRINTLN("Manual -> On");
+        debugPrintln("Manual -> On");
         for (uint8_t i=0; i<manualHeatersNum; i++) {
             HeaterItem* heater = manualHeaters[i];
             processHeatersOutput(heater);
@@ -1321,15 +1587,15 @@ void processHeaters() {
                 if (heater->getPowerConsumption() < availablePower) {
                     heater->setActualState(true);
                     availablePower -= heater->getPowerConsumption();
-                    DEBUG_PRINT("turned ON by user.");
+                    debugPrint("turned ON by user.");
                 } else {
-                    DEBUG_PRINT("failed to turn ON. Not enough power.");
+                    debugPrint("failed to turn ON. Not enough power.");
                 }
             }
-            DEBUG_PRINTLN();
+            debugPrintln();
         }
         //auto heaters
-        DEBUG_PRINTLN("Auto -> On");
+        debugPrintln("Auto -> On");
         for (uint8_t i=0; i<autoHeatersNum; i++) {
             HeaterItem* heater = autoHeaters[i];
             processHeatersOutput(heater);
@@ -1337,14 +1603,14 @@ void processHeaters() {
                 if (heater->getPowerConsumption() < availablePower) {
                     heater->setActualState(true);
                     availablePower -= heater->getPowerConsumption();
-                    DEBUG_PRINT("turned ON.");
+                    debugPrint("turned ON.");
                 } else {
-                    DEBUG_PRINT("failed to turn ON. Not enough power.");
+                    debugPrint("failed to turn ON. Not enough power.");
                 }
             } else {
-                DEBUG_PRINT("Nothing to do.");
+                debugPrint("Nothing to do.");
             }
-            DEBUG_PRINTLN();
+            debugPrintln();
         }
     }
 }
@@ -1362,7 +1628,7 @@ uint16_t calculateHeatersConsumption(uint8_t phase) {
 void taskSystem(void* pvParameters) {
     while(true) {
         if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-            DEBUG_PRINT(">S>"); DEBUG_STACK;
+            debugPrint(">S>"); debugStack();
             ElegantOTA.loop();
             if (flagRestartNow) {
                 // Gracefully disconnect MQTT
@@ -1370,15 +1636,8 @@ void taskSystem(void* pvParameters) {
                     mqttClient.disconnect();
                 }
                 
-                // Gracefully close TCP connection
-                if (tcpClient.connected()) {
-                    tcpClient.flush();  // Flush any pending data
-                    tcpClient.stop();   // Initiate TCP close (FIN)
-                }
-                
-                // Wait for TCP close handshake to complete
-                // TCP requires FIN/ACK/FIN/ACK sequence
-                vTaskDelay(2000 / portTICK_PERIOD_MS);
+                // Wait for clean disconnect
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
                 
                 ESP.restart();
             }
@@ -1393,7 +1652,7 @@ void taskSystem(void* pvParameters) {
                 flagProcessHeatersNow = false;
                 processHeaters();
             }
-            DEBUG_PRINT("<S<"); DEBUG_STACK;
+            debugPrint("<S<"); debugStack();
             xSemaphoreGive(mutex);
         }
         vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -1403,12 +1662,12 @@ void taskSystem(void* pvParameters) {
 void taskMain(void* pvParameters) {
     while(true) {
         if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-            DEBUG_PRINT(">M>"); DEBUG_STACK;
+            debugPrint(">M>"); debugStack();
             requestTemperatures();
             vTaskDelay(READ_SENSORS_DELAY / portTICK_PERIOD_MS);
             readTemperatures();
             processHeaters();
-            DEBUG_PRINT("<M<"); DEBUG_STACK;
+            debugPrint("<M<"); debugStack();
             xSemaphoreGive(mutex);
         }
         vTaskDelay(TEMPERATURE_READ_INTERVAL / portTICK_PERIOD_MS);
@@ -1475,30 +1734,23 @@ void setup()
     //init settings
     loadSettings(settings);
 
-    if (settings.useTcp) {
-        auto now = millis();
-        while(millis() - now < 2000) {
-            if (tcpConnect()) {
-                break;
-            }
-        }
-    }
-    DEBUG_PRINTLN();DEBUG_PRINT("HeatingController32 ");DEBUG_PRINT(VERSION_SHORT);DEBUG_PRINTLN(" starting...");
-    DEBUG_PRINTLN("Debug mode");
-    DEBUG_PRINT("Last reboot reason: "); DEBUG_PRINTLN(getResetReason());
-    DEBUG_PRINTLN();
+    debugPrintln();debugPrint("HeatingController32 ");debugPrint(VERSION_SHORT);debugPrintln(" starting...");
+    debugPrintln("Debug output enabled");
+    debugPrint("Last reboot reason: "); debugPrintln(getResetReason());
+    debugPrintln();
 
-    DEBUG_PRINTLN("Initializing with settings:");
-    DEBUG_PRINT("Hysteresis: "); DEBUG_PRINTLN(settings.hysteresis);
-    DEBUG_PRINT("MQTT url: "); DEBUG_PRINTLN(settings.mqttUrl);
-    DEBUG_PRINT("Mqtt port: "); DEBUG_PRINTLN(settings.mqttPort);
-    DEBUG_PRINT("TCP url: "); DEBUG_PRINTLN(settings.tcpUrl);
-    DEBUG_PRINT("TCP port: "); DEBUG_PRINTLN(settings.tcpPort);
-    DEBUG_PRINT("Use TCP: "); DEBUG_PRINTLN(settings.useTcp);
+    debugPrintln("Initializing with settings:");
+    debugPrint("Hysteresis: "); debugPrintln(settings.hysteresis);
+    debugPrint("MQTT url: "); debugPrintln(settings.mqttUrl);
+    debugPrint("Mqtt port: "); debugPrintln(settings.mqttPort);
+    debugPrint("UDP debug address: "); debugPrintln(settings.udpDebugAddress);
+    debugPrint("UDP port: "); debugPrintln(settings.udpPort);
+    debugPrint("Serial debug: "); debugPrintln(settings.debugSerial);
+    debugPrint("UDP debug: "); debugPrintln(settings.debugUdp);
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
-        DEBUG_PRINT("Phase ");DEBUG_PRINT(i); DEBUG_PRINT(": consumption limit: ");DEBUG_PRINTLN(settings.consumptionLimit[i]);
+        debugPrint("Phase ");debugPrint(i); debugPrint(": consumption limit: ");debugPrintln(settings.consumptionLimit[i]);
     }
-    DEBUG_PRINTLN();
+    debugPrintln();
 
     ISR_Timer.enable(TIMER_NUM_ONEWIRE_LED_BLINK);
     sensors.begin();
@@ -1510,18 +1762,18 @@ void setup()
     }
 #endif
 
-    DEBUG_PRINT("Detected sensors: "); DEBUG_PRINTDEC(sensorsCount); DEBUG_PRINTLN();
+    debugPrint("Detected sensors: "); debugPrintDec(sensorsCount); debugPrintln();
     for (uint8_t i = 0; i < sensorsCount; i++) {
         sensors.getAddress(sensorAddresses[i], i);
         String sensorAddress;
         byteArrayToHexString(sensorAddresses[i], SENSOR_ADDR_LEN, sensorAddress);
-        DEBUG_PRINT(sensorAddress);
-        DEBUG_PRINT(" : ");
+        debugPrint(sensorAddress);
+        debugPrint(" : ");
         temperatures[i] = sensors.getTempC(sensorAddresses[i]);
-        DEBUG_PRINT(temperatures[i]);
-        DEBUG_PRINTLN();
+        debugPrint(temperatures[i]);
+        debugPrintln();
     }
-    DEBUG_PRINTLN();
+    debugPrintln();
 
     server.on("/default.css", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(LittleFS, "/default.css", "text/css");
@@ -1593,7 +1845,7 @@ void setup()
     server.begin();
 
     // Wait 1 minute to allow OTA firmware update in case board crashes after starting tasks
-    DEBUG_PRINTLN("Upload firmware now...");
+    debugPrintln("Upload firmware now...");
     auto now = millis();
     while(millis() - now < 60000) {
         ElegantOTA.loop();
@@ -1607,9 +1859,9 @@ void setup()
         if (!checkSensorConfigured(&sensorAddresses[i])) {
             String sensor;
             byteArrayToHexString(sensorAddresses[i], SENSOR_ADDR_LEN, sensor);
-            DEBUG_PRINT("Sensor ");
-            DEBUG_PRINT(sensor);
-            DEBUG_PRINTLN(" is connected but not configured.");
+            debugPrint("Sensor ");
+            debugPrint(sensor);
+            debugPrintln(" is connected but not configured.");
         }
     }
 
@@ -1623,7 +1875,7 @@ void setup()
             break;
     }
 
-    DEBUG_PRINTLN("Starting tasks...");
+    debugPrintln("Starting tasks...");
     mutex = xSemaphoreCreateMutex();
 
     //stack size calculation based on empirical data
