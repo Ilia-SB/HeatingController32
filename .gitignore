@@ -10,6 +10,4 @@ include/version.h
 versioning
 
 # Clangd generated files (machine-specific)
-compile_commands.json
 .cache
-.clangd
