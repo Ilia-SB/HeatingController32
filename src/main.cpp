@@ -101,6 +101,7 @@ unsigned long emergencyHandled[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
 bool heatersInitialized = false;
 
 bool flagRestartNow = false;
+bool flagProcessHeatersNow = false;
 
 
 void ethernetLed(uint8_t);
@@ -237,8 +238,9 @@ void getConsumptionData(const char* rawData) {
             } else {
                 flagEmergency[phase] = false;
             }
-            if(emergency) {
-                processHeaters();
+            // Only process heaters immediately if there's an emergency
+            if (emergency) {
+                flagProcessHeatersNow = true;
             }
         }
     }
@@ -354,7 +356,8 @@ void processCommand(char* item, char* command, char* payload) {
         saveState(*heater);
     }
     reportHeaterState(*heater);
-    processHeaters();
+    // Signal taskSystem to call processHeaters() immediately after MQTT callback returns
+    flagProcessHeatersNow = true;
 }
 
 void mqttCallback(char* topic, byte* payload, const unsigned int len) {
@@ -1375,6 +1378,11 @@ void taskSystem(void* pvParameters) {
             else {
                 mqttConnect();
             }
+            // Process heaters immediately if MQTT command requested it
+            if (flagProcessHeatersNow) {
+                flagProcessHeatersNow = false;
+                processHeaters();
+            }
             DEBUG_PRINT("<S<"); DEBUG_STACK;
             xSemaphoreGive(mutex);
         }
@@ -1609,9 +1617,10 @@ void setup()
     mutex = xSemaphoreCreateMutex();
 
     //stack size calculation based on empirical data
-    xTaskCreate(taskSystem, "System", 4096, NULL, 1, &hndlSystem);
+    xTaskCreate(taskSystem, "System", 8192, NULL, 1, &hndlSystem);
     xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
     //TODO: reboot reason and number of reboots
+    //TODO: cleanup on reboot not working (TCP)
 }
 
 void loop() {
