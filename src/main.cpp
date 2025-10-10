@@ -25,14 +25,12 @@
 TaskHandle_t hndlSystem;
 TaskHandle_t hndlMain;
 TaskHandle_t hndlEmergency;
-TaskHandle_t hndlProcessHeaters;
 
 SemaphoreHandle_t mutex = NULL;
 
 void taskSystem(void* pvParameters);
 void taskEmergency(void* pvParameters);
 void taskMain(void* pvParameters);
-void taskProcessHeaters(void* pvParameters);
 
 WiFiClient ethClient;
 WiFiClient tcpClient;
@@ -97,7 +95,7 @@ irqCallback isrTimerCallbacks[NUMBER_OF_ISR_TIMERS] = {
 
 bool flagEmergency[NUMBER_OF_PHASES] = {false,false,false};
 
-bool flagСonsumptionDataReceived = false;
+bool flagConsumptionDataReceived = false;
 unsigned long consumptionDataReceived[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
 unsigned long emergencyHandled[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
 
@@ -229,7 +227,7 @@ void getConsumptionData(const char* rawData) {
         //DEBUG_PRINT(key); DEBUG_PRINT(" ");
         if (doc.containsKey(key)) {
             DEBUG_PRINTLN("Received consumption data");
-            flagСonsumptionDataReceived = true;
+            flagConsumptionDataReceived = true;
             currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
             consumptionDataReceived[phase] = millis();
             bool emergency = false;
@@ -357,9 +355,7 @@ void processCommand(char* item, char* command, char* payload) {
         saveState(*heater);
     }
     reportHeaterState(*heater);
-    if (hndlProcessHeaters != NULL) {
-        vTaskResume(hndlProcessHeaters);
-    }
+    processHeaters();
 }
 
 void mqttCallback(char* topic, byte* payload, const unsigned int len) {
@@ -1019,7 +1015,10 @@ void processSettingsForm(AsyncWebServerRequest* request) {
 
     saveState(heaterItems[itemNo]);
     request->send(LittleFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
-    vTaskResume(hndlProcessHeaters);
+    if (xSemaphoreTake(mutex, portMAX_DELAY)) {
+        processHeaters();
+        xSemaphoreGive(mutex);
+    }
 }
 
 void reboot(AsyncWebServerRequest* request) {
@@ -1076,7 +1075,10 @@ void processControlForm(AsyncWebServerRequest* request) {
 
     saveState(heaterItems[itemNo]);
     request->send(LittleFS, "/control.html", String(), false, webServerPlaceholderProcessor);
-    vTaskResume(hndlProcessHeaters);
+    if (xSemaphoreTake(mutex, portMAX_DELAY)) {
+        processHeaters();
+        xSemaphoreGive(mutex);
+    }
 }
 
 void reportTemperatures() {
@@ -1399,24 +1401,11 @@ void taskMain(void* pvParameters) {
             requestTemperatures();
             vTaskDelay(READ_SENSORS_DELAY / portTICK_PERIOD_MS);
             readTemperatures();
+            processHeaters();
             DEBUG_PRINT("<M<"); DEBUG_STACK;
             xSemaphoreGive(mutex);
         }
-        vTaskResume(hndlProcessHeaters);
         vTaskDelay(TEMPERATURE_READ_INTERVAL / portTICK_PERIOD_MS);
-    }
-}
-
-void taskProcessHeaters(void* pvParameters) {
-    vTaskSuspend(NULL);
-    while(true) {
-        if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-            DEBUG_PRINT(">P>"); DEBUG_STACK;
-            processHeaters();
-            DEBUG_PRINT("<P<"); DEBUG_STACK;
-            xSemaphoreGive(mutex);
-        }
-        vTaskSuspend(NULL);
     }
 }
 
@@ -1605,7 +1594,7 @@ void setup()
         if (mqttClient.connected())
             mqttClient.loop();
         yield();
-        if (flagСonsumptionDataReceived)
+        if (flagConsumptionDataReceived)
             break;
     }
 
@@ -1616,8 +1605,6 @@ void setup()
     xTaskCreate(taskSystem, "System", 4096, NULL, 1, &hndlSystem);
     xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
     xTaskCreate(taskEmergency, "Emergency", 4096, NULL, 3, &hndlEmergency);
-    xTaskCreate(taskProcessHeaters, "ProcessHeaters", 4096, NULL, 2, &hndlProcessHeaters);
-    //TODO: Process heaters based on flag or notification rather than waking task
     //TODO: reboot reason and number of reboots
 }
 
