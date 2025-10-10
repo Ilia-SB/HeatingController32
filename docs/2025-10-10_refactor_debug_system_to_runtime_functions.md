@@ -5,7 +5,7 @@
 
 ## Overview
 
-Refactored the debug output system from compile-time preprocessor macros to runtime functions with persistent configuration. Replaced TCP debug output with UDP broadcast for better reliability and reduced complexity.
+Refactored the debug output system from compile-time preprocessor macros to runtime functions with persistent configuration. TCP debug output is now configurable at runtime via web interface.
 
 ## Changes Made
 
@@ -13,29 +13,28 @@ Refactored the debug output system from compile-time preprocessor macros to runt
 
 **Added fields:**
 - `bool debugSerial` - Enable/disable serial debug output
-- `bool debugUdp` - Enable/disable UDP debug output
-- `String udpDebugAddress` - UDP server IP address for debug messages
-- `uint16_t udpPort` - UDP port for debug messages
+- `bool debugTcp` - Enable/disable TCP debug output
 
-**Removed fields:**
-- `String tcpUrl` - No longer using TCP for debug
-- `uint16_t tcpPort` - No longer using TCP for debug
-- `bool useTcp` - No longer using TCP for debug
+**Modified fields (repurposed for debug configuration):**
+- `String tcpUrl` - TCP server IP address for debug output
+- `uint16_t tcpPort` - TCP port for debug output
 
 **Added constants:**
 - `SETTINGS_DEBUG_SERIAL "debugSerial"`
-- `SETTINGS_DEBUG_UDP "debugUdp"`
-- `SETTINGS_UDP_DEBUG_ADDRESS "udpDebugAddress"`
-- `SETTINGS_UDP_PORT "udpPort"`
+- `SETTINGS_DEBUG_TCP "debugTcp"`
+
+**Modified constants (repurposed):**
+- `SETTINGS_TCP_URL "tcpUrl"`
+- `SETTINGS_TCP_PORT "tcpPort"`
 
 ### 2. Config File Updates (`include/Config.h`)
 
 **Changes:**
 - Incremented `SETTINGS_VERSION` from 2 to 3 (triggers settings migration)
 - Removed `DEBUG` preprocessor define
-- Replaced TCP constants with UDP constants:
-  - Removed: `TCP_URL`, `TCP_PORT`
-  - Added: `UDP_DEBUG_ADDRESS` (default "192.168.1.3"), `UDP_PORT` (default 8086)
+- TCP constants remain for debug output:
+  - `TCP_URL` (default "192.168.1.3")
+  - `TCP_PORT` (default 8085)
 
 ### 3. Debug Functions (`include/DebugPrint.h`, `src/main.cpp`)
 
@@ -59,28 +58,24 @@ void debugPrint(int val);
 // ... additional overloads (18 total function declarations)
 void debugStack();
 
-// Implementations (src/main.cpp, lines 209-480, after callback functions)
+// Implementations (src/main.cpp, lines 209-384, after callback functions)
 void debugPrint(const String& msg) {
     if (settings.debugSerial) {
         Serial.print(msg);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.print(msg);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.print(msg);
     }
 }
 ```
 
 **Code organization:**
 - Declarations in `include/DebugPrint.h` (proper header file)
-- Implementations in `src/main.cpp` after callback functions (lines 209-480)
+- Implementations in `src/main.cpp` after callback functions (lines 209-384)
 - Clean separation: interface in header, implementation in source
 - Follows standard C/C++ convention
-- Each UDP send parses the configured IP address using `IPAddress.fromString()`
+- All debug output sent immediately (no buffering)
+- TCP connection checked before each send
 
 **Available debug functions:**
 - `debugPrint()` - Multiple overloads for String, char*, int, uint, long, ulong, float
@@ -92,19 +87,18 @@ void debugPrint(const String& msg) {
 
 ### 4. Network Changes (`src/main.cpp`)
 
-**Replaced:**
-- `WiFiClient tcpClient` → `WiFiUDP udpClient`
-- Removed `tcpConnect()` function
-- Removed TCP connection initialization from `setup()`
-- Removed TCP cleanup from `taskSystem()` restart logic
+**TCP Client for Debug:**
+- `WiFiClient tcpClient` used for debug output
+- `tcpConnect()` function establishes connection to debug server
+- TCP connection initialized in `setup()` if `settings.debugTcp` is enabled
+- TCP cleanup added to `taskSystem()` restart logic (flush and close before restart)
 
-**UDP Implementation:**
-- Sends to configured IP address on configured port
-- IP address parsed at runtime using `IPAddress.fromString()`
-- No connection state to maintain
-- Works immediately when Ethernet is connected
-- More reliable than TCP for debug output
-- Invalid IP addresses are silently ignored (packet not sent)
+**TCP Implementation:**
+- Connects to configured IP address and port
+- Maintains stateful connection
+- Debug output sent immediately (no buffering)
+- Checks `tcpClient.connected()` before each send
+- TCP provides ordered, reliable delivery (unlike UDP)
 
 ### 5. Web Interface Updates
 
@@ -112,14 +106,9 @@ void debugPrint(const String& msg) {
 
 Added form fields:
 - "Serial debug" - Checkbox to enable/disable serial output
-- "UDP debug" - Checkbox to enable/disable UDP output  
-- "UDP debug address" - Text input for UDP destination IP address
-- "UDP port" - Text input for UDP port number
-
-Removed form fields:
-- "TCP url"
-- "TCP port"
-- "Use TCP"
+- "TCP debug" - Checkbox to enable/disable TCP output  
+- "TCP debug url" - Text input for TCP server IP address
+- "TCP debug port" - Text input for TCP server port
 
 **Form handler (`processSettingsForm`):**
 - Reads debug checkbox states from POST parameters
@@ -139,16 +128,17 @@ Systematically replaced all debug macro calls throughout `src/main.cpp`:
 
 **Default values (when settings file doesn't exist):**
 - `debugSerial = true` - Serial debug enabled by default
-- `debugUdp = true` - UDP debug enabled by default
-- `udpDebugAddress = "192.168.1.3"` - Default UDP destination address
-- `udpPort = 8086` - Default UDP port
+- `debugTcp = true` - TCP debug enabled by default
+- `tcpUrl = "192.168.1.3"` - Default TCP server address
+- `tcpPort = 8085` - Default TCP port
 
 **Loading behavior:**
 - Settings version mismatch triggers automatic deletion and recreation with defaults
 - Missing debug fields in existing settings file default to `true` (backward compatible)
+- Missing TCP URL/port default to configured constants
 
 **Saving behavior:**
-- All three debug settings persisted to LittleFS
+- All four debug settings persisted to LittleFS (debugSerial, debugTcp, tcpUrl, tcpPort)
 - Survive reboots
 - Configurable via web interface
 
@@ -156,35 +146,35 @@ Systematically replaced all debug macro calls throughout `src/main.cpp`:
 
 1. **No recompilation needed** - Debug output can be toggled at runtime via web interface
 2. **Persistent configuration** - Settings survive reboots
-3. **Selective output** - Can enable only serial, only UDP, both, or neither
-4. **Simpler network stack** - UDP broadcast is simpler than TCP connection management
-5. **More reliable** - No connection state to maintain or clean up
+3. **Selective output** - Can enable only serial, only TCP, both, or neither
+4. **Ordered delivery** - TCP guarantees message order (unlike UDP)
+5. **Reliable connection** - TCP ensures all debug messages arrive
 6. **Better separation** - Debug system is independent of build configuration
 
 ## Migration Notes
 
 - **Settings version bump** - Existing settings files will be auto-deleted and recreated with defaults
 - **Users must reconfigure** - All settings (heater configs, MQTT settings, etc.) will need to be re-entered via web interface
-- **TCP debug removed** - Any systems relying on TCP debug output must switch to UDP
-- **UDP address and port** - Default 192.168.1.3:8086, both configurable via web interface
+- **TCP debug configurable** - TCP debug server address and port configurable via web interface
+- **TCP defaults** - Default 192.168.1.3:8085, both configurable via web interface
 
 ## Testing Recommendations
 
 1. **Serial output**
-   - Enable serial debug only, disable UDP debug
+   - Enable serial debug only, disable TCP debug
    - Verify output appears on Serial Monitor
    - Verify no network traffic
 
-2. **UDP output**
-   - Enable UDP debug only, disable serial debug
-   - Configure UDP debug address to your PC's IP
-   - Use UDP listener (e.g., `nc -u -l 8086` or `socat UDP-RECV:8086 -`)
-   - Verify UDP packets received at configured address
+2. **TCP output**
+   - Enable TCP debug only, disable serial debug
+   - Configure TCP debug url to your PC's IP
+   - Run TCP server (e.g., `nc -l 8085` or `socat TCP-LISTEN:8085,fork -`)
+   - Verify debug messages received at TCP server
    - Verify no serial output
-   - Test with invalid IP address - should fail gracefully without errors
+   - Test connection failure handling
 
 3. **Both enabled**
-   - Enable both serial and UDP debug
+   - Enable both serial and TCP debug
    - Verify output on both channels simultaneously
 
 4. **Both disabled**
@@ -196,10 +186,11 @@ Systematically replaced all debug macro calls throughout `src/main.cpp`:
    - Configure debug settings via web interface
    - Reboot controller
    - Verify settings retained after reboot
+   - Verify TCP reconnects automatically after reboot
 
 6. **Web interface**
    - Verify checkboxes reflect current state
-   - Verify UDP port field shows current value
+   - Verify TCP URL and port fields show current values
    - Verify changing settings triggers reboot
 
 ## Backward Compatibility
@@ -219,9 +210,12 @@ Systematically replaced all debug macro calls throughout `src/main.cpp`:
 
 ## Notes
 
-- Debug functions check `ethConnected` flag before attempting UDP broadcast
-- UDP broadcast address is 255.255.255.255 (entire subnet)
-- Each UDP debug call sends a separate packet (not buffered)
+- Debug functions check `tcpClient.connected()` before attempting TCP send
+- TCP connection established at startup if `settings.debugTcp` is enabled
+- **No buffering** - Each debug call sends immediately over TCP
+- TCP guarantees ordered delivery (messages arrive in the order sent)
+- TCP connection gracefully closed during restart (flush, FIN, 2-second wait)
 - Debug stack function includes "Free stack: " prefix for consistency
 - Settings default to enabled if not present (backward compatible upgrade path)
+- TCP connection state maintained by WiFiClient class
 

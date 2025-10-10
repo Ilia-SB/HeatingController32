@@ -39,9 +39,9 @@ static const char* LWT_TOPIC = "tele/heating/LWT";
 static const char* ENERGY_METER_TOPIC = "tele/energy_meter";
 static const char* ERROR_TOPIC = "error/heating";
 
-//UDP for debug output
-static const char* UDP_DEBUG_ADDRESS = "192.168.1.3";
-static const uint16_t UDP_PORT = 8086;
+//TCP for debug output
+static const char* TCP_URL = "192.168.1.3";
+static const uint16_t TCP_PORT = 8085;
 
 //JSON
 #define JSON_DOCUMENT_SIZE 896

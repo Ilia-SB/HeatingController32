@@ -16,7 +16,6 @@
 #include <DallasTemperature.h>
 #include <ETH.h>
 #include <WiFi.h>
-#include <WiFiUdp.h>
 #include <ESPAsyncWebServer.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
@@ -33,7 +32,7 @@ void taskSystem(void* pvParameters);
 void taskMain(void* pvParameters);
 
 WiFiClient ethClient;
-WiFiUDP udpClient;
+WiFiClient tcpClient;
 static bool ethConnected = false;
 
 AsyncWebServer server(80);
@@ -112,6 +111,7 @@ void updateOutputs(uint16_t);
 void setPorts(boolean[]);
 void processCommand(char*, char*, char*);
 void mqttCallback(char*, byte*, const unsigned int);
+bool tcpConnect(void);
 bool mqttConnect(void);
 void WiFiEvent(WiFiEvent_t);
 String webServerPlaceholderProcessor(const String&);
@@ -211,13 +211,8 @@ void debugPrint(const String& msg) {
     if (settings.debugSerial) {
         Serial.print(msg);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.print(msg);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.print(msg);
     }
 }
 
@@ -225,13 +220,8 @@ void debugPrint(const char* msg) {
     if (settings.debugSerial) {
         Serial.print(msg);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.print(msg);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.print(msg);
     }
 }
 
@@ -239,13 +229,8 @@ void debugPrint(int val) {
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.print(val);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.print(val);
     }
 }
 
@@ -253,13 +238,8 @@ void debugPrint(unsigned int val) {
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.print(val);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.print(val);
     }
 }
 
@@ -267,13 +247,8 @@ void debugPrint(long val) {
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.print(val);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.print(val);
     }
 }
 
@@ -281,13 +256,8 @@ void debugPrint(unsigned long val) {
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.print(val);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.print(val);
     }
 }
 
@@ -295,13 +265,8 @@ void debugPrint(float val) {
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.print(val);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.print(val);
     }
 }
 
@@ -309,13 +274,8 @@ void debugPrintln() {
     if (settings.debugSerial) {
         Serial.println();
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.println();
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.println();
     }
 }
 
@@ -323,13 +283,8 @@ void debugPrintln(const String& msg) {
     if (settings.debugSerial) {
         Serial.println(msg);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.println(msg);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.println(msg);
     }
 }
 
@@ -337,13 +292,8 @@ void debugPrintln(const char* msg) {
     if (settings.debugSerial) {
         Serial.println(msg);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.println(msg);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.println(msg);
     }
 }
 
@@ -351,13 +301,8 @@ void debugPrintln(int val) {
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.println(val);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.println(val);
     }
 }
 
@@ -365,13 +310,8 @@ void debugPrintln(unsigned int val) {
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.println(val);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.println(val);
     }
 }
 
@@ -379,13 +319,8 @@ void debugPrintln(long val) {
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.println(val);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.println(val);
     }
 }
 
@@ -393,13 +328,8 @@ void debugPrintln(unsigned long val) {
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.println(val);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.println(val);
     }
 }
 
@@ -407,13 +337,8 @@ void debugPrintln(float val) {
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.println(val);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.println(val);
     }
 }
 
@@ -421,13 +346,8 @@ void debugPrintDec(int val) {
     if (settings.debugSerial) {
         Serial.print(val, DEC);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.print(val, DEC);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.print(val, DEC);
     }
 }
 
@@ -435,13 +355,8 @@ void debugPrintHex(int val) {
     if (settings.debugSerial) {
         Serial.print(val, HEX);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.print(val, HEX);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.print(val, HEX);
     }
 }
 
@@ -451,14 +366,9 @@ void debugPrintArray(uint8_t* arr, uint8_t len) {
             Serial.print(arr[i]);
             Serial.print(" ");
         }
-        if (settings.debugUdp && ethConnected) {
-            IPAddress udpAddress;
-            if (udpAddress.fromString(settings.udpDebugAddress)) {
-                udpClient.beginPacket(udpAddress, settings.udpPort);
-                udpClient.print(arr[i]);
-                udpClient.print(" ");
-                udpClient.endPacket();
-            }
+        if (settings.debugTcp && tcpClient.connected()) {
+            tcpClient.print(arr[i]);
+            tcpClient.print(" ");
         }
     }
 }
@@ -469,13 +379,8 @@ void debugStack() {
     if (settings.debugSerial) {
         Serial.println(msg);
     }
-    if (settings.debugUdp && ethConnected) {
-        IPAddress udpAddress;
-        if (udpAddress.fromString(settings.udpDebugAddress)) {
-            udpClient.beginPacket(udpAddress, settings.udpPort);
-            udpClient.println(msg);
-            udpClient.endPacket();
-        }
+    if (settings.debugTcp && tcpClient.connected()) {
+        tcpClient.println(msg);
     }
 }
 
@@ -674,6 +579,21 @@ void mqttCallback(char* topic, byte* payload, const unsigned int len) {
     item[firstSlash - secondSlash - 1] = '\0';
 
     processCommand(item, command, payloadCopy);
+}
+
+bool tcpConnect() {
+    if (!ethConnected) {
+        return false;
+    }
+
+    if (tcpClient.connect(settings.tcpUrl.c_str(), settings.tcpPort)) {
+        Serial.println("TCP client connected.");
+        tcpClient.setNoDelay(true);
+        return true;
+    } else {
+        Serial.println("TCP client connect failed.");
+        return false;
+    }
 }
 
 bool mqttConnect() {
@@ -892,17 +812,17 @@ String webServerPlaceholderProcessor(const String& placeholder) {
         retValue += "<tr><td class=\"name\">MQTT port</td><td class=\"value\"><input type=\"text\" name=\"mqttPort\" value=\"";
         retValue += String(settings.mqttPort);
         retValue += "\"></td></tr>";
-        retValue += "<tr><td class=\"name\">UDP debug address</td><td class=\"value\"><input type=\"text\" name=\"udpDebugAddress\" value=\"";
-        retValue += settings.udpDebugAddress;
+        retValue += "<tr><td class=\"name\">TCP debug url</td><td class=\"value\"><input type=\"text\" name=\"tcpUrl\" value=\"";
+        retValue += settings.tcpUrl;
         retValue += "\"></td></tr>";
-        retValue += "<tr><td class=\"name\">UDP port</td><td class=\"value\"><input type=\"text\" name=\"udpPort\" value=\"";
-        retValue += String(settings.udpPort);
+        retValue += "<tr><td class=\"name\">TCP debug port</td><td class=\"value\"><input type=\"text\" name=\"tcpPort\" value=\"";
+        retValue += String(settings.tcpPort);
         retValue += "\"></td></tr>";
         retValue += "<tr><td class=\"name\">Serial debug</td><td class=\"value\"><input type=\"checkbox\" name=\"debugSerial\"";
         retValue += settings.debugSerial?" checked":"";
         retValue += "></td></tr>";
-        retValue += "<tr><td class=\"name\">UDP debug</td><td class=\"value\"><input type=\"checkbox\" name=\"debugUdp\"";
-        retValue += settings.debugUdp?" checked":"";
+        retValue += "<tr><td class=\"name\">TCP debug</td><td class=\"value\"><input type=\"checkbox\" name=\"debugTcp\"";
+        retValue += settings.debugTcp?" checked":"";
         retValue += "></td></tr>";
         for (uint8_t i=1; i<NUMBER_OF_PHASES+1; i++) {
             retValue += "<tr><td class=\"name\">Phase ";
@@ -1015,9 +935,9 @@ void setDefaultSettings(Settings& settings) {
     settings.mqttUrl = MQTT_URL;
     settings.mqttPort = MQTT_PORT;
     settings.debugSerial = true;
-    settings.debugUdp = true;
-    settings.udpDebugAddress = UDP_DEBUG_ADDRESS;
-    settings.udpPort = UDP_PORT;
+    settings.debugTcp = true;
+    settings.tcpUrl = TCP_URL;
+    settings.tcpPort = TCP_PORT;
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         settings.consumptionLimit[i] = CONSUMPTION_LIMITS[i];
     }
@@ -1090,9 +1010,9 @@ void saveSettings(Settings& settings) {
     doc[SETTINGS_MQTT_URL] = settings.mqttUrl;
     doc[SETTINGS_MQTT_PORT] = settings.mqttPort;
     doc[SETTINGS_DEBUG_SERIAL] = settings.debugSerial;
-    doc[SETTINGS_DEBUG_UDP] = settings.debugUdp;
-    doc[SETTINGS_UDP_DEBUG_ADDRESS] = settings.udpDebugAddress;
-    doc[SETTINGS_UDP_PORT] = settings.udpPort;
+    doc[SETTINGS_DEBUG_TCP] = settings.debugTcp;
+    doc[SETTINGS_TCP_URL] = settings.tcpUrl;
+    doc[SETTINGS_TCP_PORT] = settings.tcpPort;
     JsonArray consumptionLimit = doc.createNestedArray("consumptionLimit");
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         consumptionLimit.add(settings.consumptionLimit[i]);
@@ -1145,9 +1065,9 @@ void loadSettings(Settings& settings) {
         settings.mqttUrl = doc[SETTINGS_MQTT_URL].as<String>();
         settings.mqttPort = doc[SETTINGS_MQTT_PORT].as<uint16_t>();
         settings.debugSerial = doc.containsKey(SETTINGS_DEBUG_SERIAL) ? doc[SETTINGS_DEBUG_SERIAL].as<bool>() : true;
-        settings.debugUdp = doc.containsKey(SETTINGS_DEBUG_UDP) ? doc[SETTINGS_DEBUG_UDP].as<bool>() : true;
-        settings.udpDebugAddress = doc.containsKey(SETTINGS_UDP_DEBUG_ADDRESS) ? doc[SETTINGS_UDP_DEBUG_ADDRESS].as<String>() : UDP_DEBUG_ADDRESS;
-        settings.udpPort = doc.containsKey(SETTINGS_UDP_PORT) ? doc[SETTINGS_UDP_PORT].as<uint16_t>() : UDP_PORT;
+        settings.debugTcp = doc.containsKey(SETTINGS_DEBUG_TCP) ? doc[SETTINGS_DEBUG_TCP].as<bool>() : true;
+        settings.tcpUrl = doc.containsKey(SETTINGS_TCP_URL) ? doc[SETTINGS_TCP_URL].as<String>() : TCP_URL;
+        settings.tcpPort = doc.containsKey(SETTINGS_TCP_PORT) ? doc[SETTINGS_TCP_PORT].as<uint16_t>() : TCP_PORT;
         JsonArray consumptionLimit = doc[SETTINGS_CONSUMPTION_LIMIT];
         for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
             settings.consumptionLimit[i] = consumptionLimit.getElement(i).as<uint16_t>();
@@ -1215,21 +1135,21 @@ void processSettingsForm(AsyncWebServerRequest* request) {
         if (request->hasParam(SETTINGS_MQTT_PORT, true)) {
             settings.mqttPort = request->getParam(SETTINGS_MQTT_PORT, true)->value().toInt();
         }
-        if (request->hasParam(SETTINGS_UDP_DEBUG_ADDRESS, true)) {
-            settings.udpDebugAddress = request->getParam(SETTINGS_UDP_DEBUG_ADDRESS, true)->value();
+        if (request->hasParam(SETTINGS_TCP_URL, true)) {
+            settings.tcpUrl = request->getParam(SETTINGS_TCP_URL, true)->value();
         }
-        if (request->hasParam(SETTINGS_UDP_PORT, true)) {
-            settings.udpPort = request->getParam(SETTINGS_UDP_PORT, true)->value().toInt();
+        if (request->hasParam(SETTINGS_TCP_PORT, true)) {
+            settings.tcpPort = request->getParam(SETTINGS_TCP_PORT, true)->value().toInt();
         }
         if (request->hasParam(SETTINGS_DEBUG_SERIAL, true)) {
             settings.debugSerial = true;
         } else {
             settings.debugSerial = false;
         }
-        if (request->hasParam(SETTINGS_DEBUG_UDP, true)) {
-            settings.debugUdp = true;
+        if (request->hasParam(SETTINGS_DEBUG_TCP, true)) {
+            settings.debugTcp = true;
         } else {
-            settings.debugUdp = false;
+            settings.debugTcp = false;
         }
         for (uint8_t i=1; i<NUMBER_OF_PHASES+1; i++) {
             String paramName = "phase_";
@@ -1636,8 +1556,15 @@ void taskSystem(void* pvParameters) {
                     mqttClient.disconnect();
                 }
                 
-                // Wait for clean disconnect
-                vTaskDelay(1000 / portTICK_PERIOD_MS);
+                // Gracefully close TCP connection
+                if (tcpClient.connected()) {
+                    tcpClient.flush();  // Flush any pending data
+                    tcpClient.stop();   // Initiate TCP close (FIN)
+                }
+                
+                // Wait for TCP close handshake to complete
+                // TCP requires FIN/ACK/FIN/ACK sequence
+                vTaskDelay(2000 / portTICK_PERIOD_MS);
                 
                 ESP.restart();
             }
@@ -1734,6 +1661,14 @@ void setup()
     //init settings
     loadSettings(settings);
 
+    if (settings.debugTcp) {
+        auto now = millis();
+        while(millis() - now < 2000) {
+            if (tcpConnect()) {
+                break;
+            }
+        }
+    }
     debugPrintln();debugPrint("HeatingController32 ");debugPrint(VERSION_SHORT);debugPrintln(" starting...");
     debugPrintln("Debug output enabled");
     debugPrint("Last reboot reason: "); debugPrintln(getResetReason());
@@ -1743,10 +1678,10 @@ void setup()
     debugPrint("Hysteresis: "); debugPrintln(settings.hysteresis);
     debugPrint("MQTT url: "); debugPrintln(settings.mqttUrl);
     debugPrint("Mqtt port: "); debugPrintln(settings.mqttPort);
-    debugPrint("UDP debug address: "); debugPrintln(settings.udpDebugAddress);
-    debugPrint("UDP port: "); debugPrintln(settings.udpPort);
+    debugPrint("TCP debug url: "); debugPrintln(settings.tcpUrl);
+    debugPrint("TCP debug port: "); debugPrintln(settings.tcpPort);
     debugPrint("Serial debug: "); debugPrintln(settings.debugSerial);
-    debugPrint("UDP debug: "); debugPrintln(settings.debugUdp);
+    debugPrint("TCP debug: "); debugPrintln(settings.debugTcp);
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         debugPrint("Phase ");debugPrint(i); debugPrint(": consumption limit: ");debugPrintln(settings.consumptionLimit[i]);
     }

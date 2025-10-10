@@ -10,9 +10,9 @@
 #define SETTINGS_MQTT_URL           "mqttUrl"
 #define SETTINGS_MQTT_PORT          "mqttPort"
 #define SETTINGS_DEBUG_SERIAL       "debugSerial"
-#define SETTINGS_DEBUG_UDP          "debugUdp"
-#define SETTINGS_UDP_DEBUG_ADDRESS  "udpDebugAddress"
-#define SETTINGS_UDP_PORT           "udpPort"
+#define SETTINGS_DEBUG_TCP          "debugTcp"
+#define SETTINGS_TCP_URL            "tcpUrl"
+#define SETTINGS_TCP_PORT           "tcpPort"
 
 class Settings
 {
@@ -24,9 +24,9 @@ public:
     String mqttUrl;
     uint16_t mqttPort;
     bool debugSerial;
-    bool debugUdp;
-    String udpDebugAddress;
-    uint16_t udpPort;
+    bool debugTcp;
+    String tcpUrl;
+    uint16_t tcpPort;
 //functions
 public:
     bool setHysteresis(const char* val);
