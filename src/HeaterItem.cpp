@@ -279,9 +279,10 @@ void HeaterItem::setNotificationCallBack(NotificationCallBack callback) {
 
 bool HeaterItem::setActualState(const bool state) {
 	actualState = state;
-	if (getIsEnabled() == true)
+	if (getIsEnabled() == true) {
 		outputCallback(port, actualState);
 		notificationCallback(*this);
+	}
 	return true;
 }
 
@@ -366,7 +367,7 @@ void HeaterItem::setPhase(const uint8_t p) {
 
 bool HeaterItem::setPhase(const char* val) {
 	byte _phase = atoi(val);
-	if (_phase < 0 || _phase > NUMBER_OF_PHASES - 1)
+	if (_phase < 1 || _phase > NUMBER_OF_PHASES)
 		return false;
 
 	setPhase(_phase);

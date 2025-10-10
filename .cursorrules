@@ -1,0 +1,34 @@
+# Cursor AI Rules for HeatingController32
+
+## Documentation Standards
+
+1. **Always maintain a `docs/` directory** for:
+   - Code reviews and fixes
+   - Conversation logs
+   - Architecture decisions
+   - Build notes and deployment guides
+
+2. **File naming convention**: 
+   - Use format: `YYYY-MM-DD_description.md`
+   - Example: `2025-10-10_code_review_and_fixes.md`
+
+3. **When making significant changes**:
+   - Document the changes in `docs/`
+   - Include before/after code examples
+   - Explain the reasoning
+   - Note any testing recommendations
+
+4. **Project-specific guidelines**:
+   - This is an ESP32 embedded system project
+   - Uses PlatformIO for building
+   - FreeRTOS tasks with mutex protection
+   - MQTT and web server interfaces
+
+## Code Standards
+
+- Always add braces for single-line if statements
+- Check mutex/semaphore handling carefully
+- Validate array bounds where applicable
+- Use meaningful variable names (avoid typos)
+- Document phase numbering (1-based for user-facing, 0-based for arrays)
+

@@ -21,7 +21,6 @@
 #include <ArduinoJson.h>
 #include <ESP32TimerInterrupt.h>
 #include <ElegantOTA.h>
-#include <ArduinoJson.h>
 
 TaskHandle_t hndlSystem;
 TaskHandle_t hndlMain;
@@ -57,7 +56,7 @@ float temperatures[MAX_NUMBER_OF_SENSORS];
 uint8_t unconnectedSensorsCount = 0;
 HeaterItem* unconnectedSensors[NUMBER_OF_HEATERS];
 
-uint8_t unconfiguredSesorsCount = 0;
+uint8_t unconfiguredSensorsCount = 0;
 DeviceAddress* unconfiguredSensors[MAX_NUMBER_OF_SENSORS];
 
 Settings settings;
@@ -98,7 +97,7 @@ irqCallback isrTimerCallbacks[NUMBER_OF_ISR_TIMERS] = {
 
 bool flagEmergency[NUMBER_OF_PHASES] = {false,false,false};
 
-bool consumptionDataRecieved = false;
+bool consumptionDataReceived = false;
 unsigned long consumptionDataReceived[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
 unsigned long emergencyHandled[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
 
@@ -230,7 +229,7 @@ void getConsumptionData(const char* rawData) {
         //DEBUG_PRINT(key); DEBUG_PRINT(" ");
         if (doc.containsKey(key)) {
             DEBUG_PRINTLN("Received consumption data");
-            consumptionDataRecieved = true;
+            consumptionDataReceived = true;
             currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
             consumptionDataReceived[phase] = millis();
             bool emergency = false;
@@ -282,7 +281,7 @@ void processCommand(char* item, char* command, char* payload) {
                 }
             }
         }
-        ESP.restart();
+        flagRestartNow = true;
         return;
     }
 
@@ -364,15 +363,13 @@ void processCommand(char* item, char* command, char* payload) {
 }
 
 void mqttCallback(char* topic, byte* payload, const unsigned int len) {
-    if (len < MQTT_MAX_PACKET_SIZE) {
-        payload[len] = '\0';
-    }
-    else {
+    if (len >= MQTT_MAX_PACKET_SIZE) {
         return;
     }
 
     char payloadCopy[len + 1];
-    strcpy(payloadCopy, (char*)payload);
+    memcpy(payloadCopy, payload, len);
+    payloadCopy[len] = '\0';
     strupr(payloadCopy);
 
     //Energy meter
@@ -678,7 +675,7 @@ String webServerPlaceholderProcessor(const String& placeholder) {
         }
     }
     if (placeholder.equals("UNCONFIGURED")) {
-        for (uint8_t i=0; i<unconfiguredSesorsCount; i++) {
+        for (uint8_t i=0; i<unconfiguredSensorsCount; i++) {
             String sensor;
             byteArrayToHexString(*unconfiguredSensors[i], SENSOR_ADDR_LEN, sensor);
             retValue += "<li>";
@@ -807,10 +804,11 @@ void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& 
     doc["priority"] = heaterItem.getPriority();
     doc["targetTemperature"] = heaterItem.getTargetTemperature();
     doc["temperatureAdjust"] = heaterItem.getTemperatureAdjust();
-    if (forReport)
+    if (forReport) {
         doc["auxAdjust"] = heaterItem.getAuxAdjust();
         doc["sensorTemperature"] = heaterItem.getSensorTemperature();
         doc["temperature"] = heaterItem.getTemperature();
+    }
 }
 
 void getItemFilename(uint8_t i, String& fileName) {
@@ -1036,13 +1034,8 @@ void onOtaStart() {
 
 void onOtaEnd(bool success) {
     if (success) {
-        DEBUG_PRINTLN("Firmware update successfull");
-        DEBUG_PRINT("Waiting for running task to complete before reboot")
-        while(!xSemaphoreTake(mutex, portMAX_DELAY)) {
-            DEBUG_PRINT(".");
-        }
-        DEBUG_PRINTLN();
-        ESP.restart();
+        DEBUG_PRINTLN("Firmware update successful");
+        flagRestartNow = true;
     } else {
         DEBUG_PRINTLN("Firmware update failed");
     }
@@ -1187,7 +1180,7 @@ bool checkSensorConfigured(DeviceAddress* sensor) {
             return true;
         }
     }
-    unconfiguredSensors[unconfiguredSesorsCount++] = sensor;
+    unconfiguredSensors[unconfiguredSensorsCount++] = sensor;
     return false;
 }
 
@@ -1393,8 +1386,8 @@ void taskEmergency(void* pvParameters) {
     while(true) {
         if (xSemaphoreTake(mutex, portMAX_DELAY)) {
             processHeaters();
-            vTaskSuspend(NULL);
             xSemaphoreGive(mutex);
+            vTaskSuspend(NULL);
         }
     }
 }
@@ -1611,9 +1604,9 @@ void setup()
     while (millis()-now < 5000) {
         if (mqttClient.connected())
             mqttClient.loop();
-            yield();
-        if (consumptionDataRecieved)
-        break;
+        yield();
+        if (consumptionDataReceived)
+            break;
     }
 
     DEBUG_PRINTLN("Starting tasks...");
@@ -1626,7 +1619,6 @@ void setup()
     xTaskCreate(taskProcessHeaters, "ProcessHeaters", 4096, NULL, 2, &hndlProcessHeaters);
     //TODO: Process heaters based on flag or notification rather than waking task
     //TODO: reboot reason and number of reboots
-    //TODO: Disconnect tcpClient on reboot
 }
 
 void loop() {

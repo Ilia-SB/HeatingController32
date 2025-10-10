@@ -4,3 +4,7 @@
 .vscode/launch.json
 .vscode/ipch
 .vscode/settings.json
+
+# Auto-generated build files
+include/version.h
+versioning
