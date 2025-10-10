@@ -72,8 +72,8 @@ static const uint16_t CONSUMPTION_LIMITS[NUMBER_OF_PHASES] = {5000, 5000, 5000};
 
 //NTP
 static const char* NTP_SERVER = "pool.ntp.org";
-static const long GMT_OFFSET_SEC = 0;        // Default: UTC (0 seconds)
-static const int DAYLIGHT_OFFSET_SEC = 0;    // Default: no daylight saving
+static const int GMT_OFFSET_HOURS = 3;       // Default: UTC (0 hours, use +/- for timezone)
+static const int DAYLIGHT_OFFSET_HOURS = 0;  // Default: no daylight saving (usually 0 or 1)
 
 //Reboot History
 #define REBOOT_LOG_FILE "/reboot.log"

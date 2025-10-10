@@ -14,8 +14,8 @@
 #define SETTINGS_TCP_URL            "tcpUrl"
 #define SETTINGS_TCP_PORT           "tcpPort"
 #define SETTINGS_NTP_SERVER         "ntpServer"
-#define SETTINGS_GMT_OFFSET         "gmtOffset"
-#define SETTINGS_DAYLIGHT_OFFSET    "daylightOffset"
+#define SETTINGS_GMT_OFFSET         "gmtOffsetHours"
+#define SETTINGS_DAYLIGHT_OFFSET    "daylightOffsetHours"
 
 class Settings
 {
@@ -31,8 +31,8 @@ public:
     String tcpUrl;
     uint16_t tcpPort;
     String ntpServer;
-    long gmtOffset;
-    int daylightOffset;
+    int gmtOffsetHours;
+    int daylightOffsetHours;
 //functions
 public:
     bool setHysteresis(const char* val);

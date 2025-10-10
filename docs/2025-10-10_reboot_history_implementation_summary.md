@@ -136,16 +136,18 @@ Users can configure (in `/settings.cfg`):
 ```json
 {
   "ntpServer": "pool.ntp.org",
-  "gmtOffset": 0,
-  "daylightOffset": 0
+  "gmtOffsetHours": 0,
+  "daylightOffsetHours": 0
 }
 ```
 
-Common timezone offsets:
+Common timezone offsets (in hours):
 - UTC: 0
-- EST: -18000 (-5 hours)
-- CET: 3600 (+1 hour)
-- PST: -28800 (-8 hours)
+- EST: -5
+- CET: +1
+- MSK: +3
+- PST: -8
+- IST: +5 (use 5.5 not supported, use 5 and adjust manually)
 
 ## Next Steps
 

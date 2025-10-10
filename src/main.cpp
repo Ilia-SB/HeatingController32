@@ -940,8 +940,8 @@ void setDefaultSettings(Settings& settings) {
     settings.tcpUrl = TCP_URL;
     settings.tcpPort = TCP_PORT;
     settings.ntpServer = NTP_SERVER;
-    settings.gmtOffset = GMT_OFFSET_SEC;
-    settings.daylightOffset = DAYLIGHT_OFFSET_SEC;
+    settings.gmtOffsetHours = GMT_OFFSET_HOURS;
+    settings.daylightOffsetHours = DAYLIGHT_OFFSET_HOURS;
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         settings.consumptionLimit[i] = CONSUMPTION_LIMITS[i];
     }
@@ -1018,8 +1018,8 @@ void saveSettings(Settings& settings) {
     doc[SETTINGS_TCP_URL] = settings.tcpUrl;
     doc[SETTINGS_TCP_PORT] = settings.tcpPort;
     doc[SETTINGS_NTP_SERVER] = settings.ntpServer;
-    doc[SETTINGS_GMT_OFFSET] = settings.gmtOffset;
-    doc[SETTINGS_DAYLIGHT_OFFSET] = settings.daylightOffset;
+    doc[SETTINGS_GMT_OFFSET] = settings.gmtOffsetHours;
+    doc[SETTINGS_DAYLIGHT_OFFSET] = settings.daylightOffsetHours;
     JsonArray consumptionLimit = doc.createNestedArray("consumptionLimit");
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         consumptionLimit.add(settings.consumptionLimit[i]);
@@ -1076,8 +1076,8 @@ void loadSettings(Settings& settings) {
         settings.tcpUrl = doc.containsKey(SETTINGS_TCP_URL) ? doc[SETTINGS_TCP_URL].as<String>() : TCP_URL;
         settings.tcpPort = doc.containsKey(SETTINGS_TCP_PORT) ? doc[SETTINGS_TCP_PORT].as<uint16_t>() : TCP_PORT;
         settings.ntpServer = doc.containsKey(SETTINGS_NTP_SERVER) ? doc[SETTINGS_NTP_SERVER].as<String>() : NTP_SERVER;
-        settings.gmtOffset = doc.containsKey(SETTINGS_GMT_OFFSET) ? doc[SETTINGS_GMT_OFFSET].as<long>() : GMT_OFFSET_SEC;
-        settings.daylightOffset = doc.containsKey(SETTINGS_DAYLIGHT_OFFSET) ? doc[SETTINGS_DAYLIGHT_OFFSET].as<int>() : DAYLIGHT_OFFSET_SEC;
+        settings.gmtOffsetHours = doc.containsKey(SETTINGS_GMT_OFFSET) ? doc[SETTINGS_GMT_OFFSET].as<int>() : GMT_OFFSET_HOURS;
+        settings.daylightOffsetHours = doc.containsKey(SETTINGS_DAYLIGHT_OFFSET) ? doc[SETTINGS_DAYLIGHT_OFFSET].as<int>() : DAYLIGHT_OFFSET_HOURS;
         JsonArray consumptionLimit = doc[SETTINGS_CONSUMPTION_LIMIT];
         for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
             settings.consumptionLimit[i] = consumptionLimit.getElement(i).as<uint16_t>();
@@ -1613,7 +1613,9 @@ void taskMain(void* pvParameters) {
 
 void initNTP() {
     debugPrint("Initializing NTP with server: "); debugPrintln(settings.ntpServer);
-    configTime(settings.gmtOffset, settings.daylightOffset, settings.ntpServer.c_str());
+    long gmtOffsetSec = settings.gmtOffsetHours * 3600;
+    int daylightOffsetSec = settings.daylightOffsetHours * 3600;
+    configTime(gmtOffsetSec, daylightOffsetSec, settings.ntpServer.c_str());
 }
 
 String getFormattedTimestamp() {
@@ -1974,7 +1976,6 @@ void setup()
     //stack size calculation based on empirical data
     xTaskCreate(taskSystem, "System", 8192, NULL, 1, &hndlSystem);
     xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
-    //TODO: reboot reason and number of reboots
 }
 
 void loop() {

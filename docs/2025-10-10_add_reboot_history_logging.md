@@ -24,11 +24,10 @@ Added NTP and reboot history configuration:
 ```cpp
 //NTP
 static const char* NTP_SERVER = "pool.ntp.org";
-static const long GMT_OFFSET_SEC = 0;        // Default: UTC (0 seconds)
-static const int DAYLIGHT_OFFSET_SEC = 0;    // Default: no daylight saving
+static const int GMT_OFFSET_HOURS = 0;       // Default: UTC (0 hours, use +/- for timezone)
+static const int DAYLIGHT_OFFSET_HOURS = 0;  // Default: no daylight saving (usually 0 or 1)
 
 //Reboot History
-#define BOOT_COUNTER_FILE "/boot_counter.txt"
 #define REBOOT_LOG_FILE "/reboot.log"
 #define MAX_REBOOT_HISTORY_ENTRIES 50
 ```
@@ -39,14 +38,14 @@ Added NTP settings to Settings class:
 
 ```cpp
 #define SETTINGS_NTP_SERVER         "ntpServer"
-#define SETTINGS_GMT_OFFSET         "gmtOffset"
-#define SETTINGS_DAYLIGHT_OFFSET    "daylightOffset"
+#define SETTINGS_GMT_OFFSET         "gmtOffsetHours"
+#define SETTINGS_DAYLIGHT_OFFSET    "daylightOffsetHours"
 
 class Settings {
 public:
     String ntpServer;
-    long gmtOffset;
-    int daylightOffset;
+    int gmtOffsetHours;
+    int daylightOffsetHours;
     // ... other fields
 };
 ```
@@ -69,6 +68,7 @@ public:
 
 **`initNTP()`**
 - Initializes NTP client with configured server and timezone offsets
+- Converts hours to seconds (hours × 3600) before calling configTime()
 - Called during system startup after network initialization
 
 **`getFormattedTimestamp()`**
@@ -192,8 +192,8 @@ Single file storing reboot history entries (up to 50). Boot number is derived fr
 NTP settings are stored in `/settings.cfg` and can be configured:
 
 - **NTP Server:** Default is "pool.ntp.org"
-- **GMT Offset:** Timezone offset in seconds (e.g., -18000 for EST)
-- **Daylight Offset:** Daylight saving offset in seconds (e.g., 3600 for +1 hour)
+- **GMT Offset:** Timezone offset in hours (e.g., -5 for EST, +3 for MSK)
+- **Daylight Offset:** Daylight saving offset in hours (usually 0 or 1)
 
 Settings are loaded on boot and can be updated via the settings file.
 
