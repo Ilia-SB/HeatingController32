@@ -97,7 +97,7 @@ irqCallback isrTimerCallbacks[NUMBER_OF_ISR_TIMERS] = {
 
 bool flagEmergency[NUMBER_OF_PHASES] = {false,false,false};
 
-bool consumptionDataReceived = false;
+bool flagСonsumptionDataReceived = false;
 unsigned long consumptionDataReceived[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
 unsigned long emergencyHandled[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
 
@@ -229,7 +229,7 @@ void getConsumptionData(const char* rawData) {
         //DEBUG_PRINT(key); DEBUG_PRINT(" ");
         if (doc.containsKey(key)) {
             DEBUG_PRINTLN("Received consumption data");
-            consumptionDataReceived = true;
+            flagСonsumptionDataReceived = true;
             currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
             consumptionDataReceived[phase] = millis();
             bool emergency = false;
@@ -1605,7 +1605,7 @@ void setup()
         if (mqttClient.connected())
             mqttClient.loop();
         yield();
-        if (consumptionDataReceived)
+        if (flagСonsumptionDataReceived)
             break;
     }
 
