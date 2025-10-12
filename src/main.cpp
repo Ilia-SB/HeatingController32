@@ -101,8 +101,7 @@ unsigned long emergencyHandled[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
 
 bool heatersInitialized = false;
 
-bool flagRestartNow
- = false;
+bool flagRestartNow = false;
 bool flagProcessHeatersNow = false;
 
 
@@ -1632,7 +1631,6 @@ void taskSystem(void* pvParameters) {
                 
                 // Gracefully close TCP connection
                 if (tcpClient.connected()) {
-                    tcpClient.flush();  // Flush any pending data
                     tcpClient.stop();   // Initiate TCP close (FIN)
                 }
                 
