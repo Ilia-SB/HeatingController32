@@ -1130,6 +1130,7 @@ void loadSettings(Settings& settings) {
         for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
             settings.consumptionLimit[i] = consumptionLimit.getElement(i).as<uint16_t>();
         }
+        file.close();
     }
 }
 
