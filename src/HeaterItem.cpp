@@ -34,19 +34,25 @@ bool HeaterItem::operator>(const HeaterItem& c) {
 void HeaterItem::setTemperature(float temp) {
 	sensorTemperature = temp;
 	if (!sensorStarted) {
-		adjustedTemperature = sensorTemperature + temperatureAdjust + auxAdjust;
+		adjustedTemperature = sensorTemperature + temperatureAdjust;
 		sensorStarted = true;
 	} else {
-		adjustedTemperature = (sensorTemperature + temperatureAdjust + auxAdjust) * alpha + adjustedTemperature * (1.0f - alpha);
+		adjustedTemperature = (sensorTemperature + temperatureAdjust) * alpha + adjustedTemperature * (1.0f - alpha);
 	}
 	processTemperature();
 }
 
 float HeaterItem::getTemperature() {
+	if (isExternalSensorActive()) {
+		return externalSensorTemperature;
+	}
 	return adjustedTemperature;
 }
 
 float HeaterItem::getSensorTemperature() {
+	if (isExternalSensorActive()) {
+		return externalSensorTemperature;
+	}
 	return sensorTemperature + temperatureAdjust;
 }
 
@@ -81,21 +87,6 @@ void HeaterItem::getTemperatureAdjustBytes(byte* array) {
 	}
 	array[1] = abs(temperatureAdjust);
 	array[2] = abs(temperatureAdjust) * 100 - array[1] * 100;
-}
-
-void HeaterItem::setAuxAdjust(const float adjust) {
-	auxAdjust = adjust;
-	processTemperature();
-}
-
-float HeaterItem::getAuxAdjust() {
-	return auxAdjust;
-}
-
-bool HeaterItem::setAuxAdjust(const char* val) {
-	float _auxAdjust = strtof(val, nullptr);
-	setAuxAdjust(_auxAdjust);
-	return true;
 }
 
 float HeaterItem::getDelta() {
@@ -423,12 +414,67 @@ void HeaterItem::setTempReadErrors(uint8_t errors) {
 	tempReadErrors = errors;
 }
 
-void HeaterItem::setUsesAuxAdjust(const bool b) {
-	usesAuxAdjust = b;
+void HeaterItem::setUseExternalSensor(bool b) {
+	useExternalSensor = b;
 }
 
-bool HeaterItem::getUsesAuxAdjust(void) {
-	return usesAuxAdjust;
+bool HeaterItem::getUseExternalSensor() {
+	return useExternalSensor;
+}
+
+bool HeaterItem::setUseExternalSensor(const char* val) {
+	if (strcmp(val, ON) == 0) {
+		setUseExternalSensor(true);
+	}
+	else if (strcmp(val, OFF) == 0) {
+		setUseExternalSensor(false);
+	}
+	else {
+		return false;
+	}
+	return true;
+}
+
+void HeaterItem::setExternalSensorTopic(const char* topic) {
+	strncpy(externalSensorTopic, topic, sizeof(externalSensorTopic) - 1);
+	externalSensorTopic[sizeof(externalSensorTopic) - 1] = '\0';
+}
+
+const char* HeaterItem::getExternalSensorTopic() {
+	return externalSensorTopic;
+}
+
+void HeaterItem::getExternalSensorTopicCStr(char* val) {
+	strcpy(val, externalSensorTopic);
+}
+
+void HeaterItem::updateExternalSensorTemp(float temp) {
+	externalSensorTemperature = temp;
+	externalSensorLastUpdate = millis();
+}
+
+bool HeaterItem::isExternalSensorActive() {
+	if (!useExternalSensor) {
+		return false;
+	}
+	if (strlen(externalSensorTopic) == 0) {
+		return false;
+	}
+	if (externalSensorLastUpdate == 0) {
+		return false;
+	}
+	unsigned long currentTime = millis();
+	// Handle millis() rollover
+	unsigned long timeSinceUpdate;
+	if (currentTime >= externalSensorLastUpdate) {
+		timeSinceUpdate = currentTime - externalSensorLastUpdate;
+	} else {
+		timeSinceUpdate = (ULONG_MAX - externalSensorLastUpdate) + currentTime + 1;
+	}
+	if (timeSinceUpdate > EXTERNAL_SENSOR_TIMEOUT) {
+		return false;
+	}
+	return true;
 }
 
 void HeaterItem::processTemperature() {

@@ -45,13 +45,15 @@ private:
 	boolean actualState = false;
 	uint8_t tempReadErrors = 0;
 	boolean sensorStarted = false;
-	boolean usesAuxAdjust = false;
+	boolean useExternalSensor = false;
+	char externalSensorTopic[64] = "";
+	float externalSensorTemperature = 0;
+	unsigned long externalSensorLastUpdate = 0;
 
 	float sensorTemperature = 0;
 	float targetTemperature = 0;
 	float delta = 0;
 	float temperatureAdjust = 0;
-	float auxAdjust = 0;
 	float hysteresis = 0;
 	float adjustedTemperature = 0;
 
@@ -78,9 +80,6 @@ public:
 	void setTemperatureAdjust(const float temp);
 	float getTemperatureAdjust();
 	void getTemperatureAdjustBytes(byte* array);
-	void setAuxAdjust(const float tempadjust);
-	bool setAuxAdjust(const char* val);
-	float getAuxAdjust();
 	float getDelta();
 	void getAddressString(String& string, const char* format);
 	void setIsAuto(const bool b);
@@ -127,8 +126,14 @@ public:
 	void tempReadError(void);
 	void setTempReadErrors(uint8_t);
 	uint8_t getTempReadErrors(void);
-	void setUsesAuxAdjust(bool);
-	bool getUsesAuxAdjust();
+	void setUseExternalSensor(bool);
+	bool getUseExternalSensor();
+	bool setUseExternalSensor(const char* val);
+	void setExternalSensorTopic(const char* topic);
+	const char* getExternalSensorTopic();
+	void getExternalSensorTopicCStr(char* val);
+	void updateExternalSensorTemp(float temp);
+	bool isExternalSensorActive();
 
 	void setOutputCallBack(OutputCallBack);
 	void setNotificationCallBack(NotificationCallBack);

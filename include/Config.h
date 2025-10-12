@@ -69,6 +69,7 @@ static const uint16_t CONSUMPTION_LIMITS[NUMBER_OF_PHASES] = {5000, 5000, 5000};
 #define DEFAULT_HYSTERESIS 1.0f
 #define TEMPERATURE_READ_INTERVAL 30000L /*30s*/
 #define READ_SENSORS_DELAY 1000L /*ms*/
+#define EXTERNAL_SENSOR_TIMEOUT 180000L  /*3 minutes in milliseconds*/
 
 //NTP
 static const char* NTP_SERVER = "pool.ntp.org";

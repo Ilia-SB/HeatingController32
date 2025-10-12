@@ -101,7 +101,8 @@ unsigned long emergencyHandled[NUMBER_OF_PHASES] = {0ul,0ul,0ul};
 
 bool heatersInitialized = false;
 
-bool flagRestartNow = false;
+bool flagRestartNow
+ = false;
 bool flagProcessHeatersNow = false;
 
 
@@ -112,6 +113,7 @@ void updateOutputs(uint16_t);
 void setPorts(boolean[]);
 void processCommand(char*, char*, char*);
 void mqttCallback(char*, byte*, const unsigned int);
+void subscribeToExternalSensors(void);
 bool tcpConnect(void);
 bool mqttConnect(void);
 void WiFiEvent(WiFiEvent_t);
@@ -515,9 +517,19 @@ void processCommand(char* item, char* command, char* payload) {
         heater->setTemperatureAdjust(payload);
         save = true;
     }
-    if (strcasecmp(command, AUX_ADJUST) == 0) {
-        heater->setAuxAdjust(payload);
-        heater->setUsesAuxAdjust(true);
+    if (strcasecmp(command, USE_EXTERNAL_SENSOR) == 0) {
+        heater->setUseExternalSensor(payload);
+        save = true;
+        if (mqttClient.connected()) {
+            subscribeToExternalSensors();
+        }
+    }
+    if (strcasecmp(command, EXTERNAL_SENSOR_TOPIC) == 0) {
+        heater->setExternalSensorTopic(payload);
+        save = true;
+        if (mqttClient.connected()) {
+            subscribeToExternalSensors();
+        }
     }
     if (strcasecmp(command, CONSUMPTION) == 0) {
         heater->setPowerConsumption(payload);
@@ -546,14 +558,30 @@ void mqttCallback(char* topic, byte* payload, const unsigned int len) {
     char payloadCopy[len + 1];
     memcpy(payloadCopy, payload, len);
     payloadCopy[len] = '\0';
-    strupr(payloadCopy);
-
+    
     //Energy meter
     if (strcasecmp(topic, ENERGY_METER_TOPIC) == 0) {
+        strupr(payloadCopy);
         getConsumptionData(payloadCopy);
         return;
     }
 
+    //Check for external sensor topics
+    for (uint8_t i = 0; i < NUMBER_OF_HEATERS; i++) {
+        if (heaterItems[i].getUseExternalSensor() && 
+            strlen(heaterItems[i].getExternalSensorTopic()) > 0 &&
+            strcasecmp(topic, heaterItems[i].getExternalSensorTopic()) == 0) {
+            float temp = strtof(payloadCopy, nullptr);
+            heaterItems[i].updateExternalSensorTemp(temp);
+            debugPrint("External sensor update for heater ");
+            debugPrint(i);
+            debugPrint(": ");
+            debugPrintln(temp);
+            return;
+        }
+    }
+
+    strupr(payloadCopy);
     //Controller commands
     uint8_t firstSlash = 0;
     uint8_t secondSlash = 0;
@@ -580,6 +608,17 @@ void mqttCallback(char* topic, byte* payload, const unsigned int len) {
     item[firstSlash - secondSlash - 1] = '\0';
 
     processCommand(item, command, payloadCopy);
+}
+
+void subscribeToExternalSensors() {
+    for (uint8_t i = 0; i < NUMBER_OF_HEATERS; i++) {
+        if (heaterItems[i].getUseExternalSensor() && 
+            strlen(heaterItems[i].getExternalSensorTopic()) > 0) {
+            mqttClient.subscribe(heaterItems[i].getExternalSensorTopic());
+            debugPrint("Subscribed to external sensor: ");
+            debugPrintln(heaterItems[i].getExternalSensorTopic());
+        }
+    }
 }
 
 bool tcpConnect() {
@@ -609,6 +648,9 @@ bool mqttConnect() {
         debugPrintln("MQTT connected");
         mqttClient.subscribe(COMMAND_TOPIC.c_str());
         mqttClient.subscribe(ENERGY_METER_TOPIC);
+        if (heatersInitialized) {
+            subscribeToExternalSensors();
+        }
         mqttClient.publish(LWT_TOPIC, "Online", true);
         ISR_Timer.disable(TIMER_NUM_MQTT_LED_BLINK);
         mqttLed(HIGH);
@@ -754,6 +796,10 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += String(heaterItems[i].getPriority());
             retValue += "\"></td></tr><tr><td class=\"name\">Temperature adjust</td><td class=\"value\"><input type=\"text\" name=\"temperatureAdjust\" value=\"";
             retValue += String(heaterItems[i].getTemperatureAdjust());
+            retValue += "\"></td></tr><tr><td class=\"name\">Use external sensor</td><td class=\"value\"><input type=\"checkbox\" name=\"useExternalSensor\"";
+            retValue += heaterItems[i].getUseExternalSensor()?" checked":"";
+            retValue += "></td></tr><tr><td class=\"name\">External sensor topic</td><td class=\"value\"><input type=\"text\" name=\"externalSensorTopic\" value=\"";
+            retValue += heaterItems[i].getExternalSensorTopic();
             retValue += "\"></td></tr></tbody></table><button name=\"save\" type=\"submit\" class=\"bgrn\">Save</button></div></fieldset></form>";
         }
     }
@@ -778,8 +824,10 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += String(heaterItems[i].getRawSensorTemperature());
             retValue += " | Adjust: ";
             retValue += String(heaterItems[i].getTemperatureAdjust());
-            retValue += " | Aux: ";
-            retValue += String(heaterItems[i].getAuxAdjust());
+            if (heaterItems[i].getUseExternalSensor()) {
+                retValue += " | Ext: ";
+                retValue += heaterItems[i].isExternalSensorActive() ? "Active" : "Timeout";
+            }
             retValue += "</p></div><form style=\"color:#eaeaea;\" method=\"post\" action=\"/control\"><fieldset id=\"item_";
             retValue += itemNum;
             retValue += "\" style=\"display: none;\">";
@@ -955,7 +1003,6 @@ void setDefaults(HeaterItem& heaterItem) {
     heaterItem.setSubtopic("item_" + addr);
     heaterItem.setTargetTemperature(5.0f);
     heaterItem.setTemperatureAdjust(0.0f);
-    heaterItem.setAuxAdjust(0.0f);
 }
 
 void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& doc, bool forReport) {
@@ -987,10 +1034,12 @@ void itemToJson(HeaterItem& heaterItem, StaticJsonDocument<JSON_DOCUMENT_SIZE>& 
     doc["priority"] = heaterItem.getPriority();
     doc["targetTemperature"] = heaterItem.getTargetTemperature();
     doc["temperatureAdjust"] = heaterItem.getTemperatureAdjust();
+    doc["useExternalSensor"] = heaterItem.getUseExternalSensor();
+    doc["externalSensorTopic"] = heaterItem.getExternalSensorTopic();
     if (forReport) {
-        doc["auxAdjust"] = heaterItem.getAuxAdjust();
         doc["sensorTemperature"] = heaterItem.getSensorTemperature();
         doc["temperature"] = heaterItem.getTemperature();
+        doc["externalSensorActive"] = heaterItem.isExternalSensorActive();
     }
 }
 
@@ -1131,6 +1180,12 @@ void loadState(HeaterItem& heaterItem) {
         heaterItem.setTargetTemperature(doc["targetTemperature"].as<float>());
         heaterItem.setTemperatureAdjust(doc["temperatureAdjust"].as<float>());
         heaterItem.setIsAuto(doc["isAuto"].as<bool>());
+        if (doc.containsKey("useExternalSensor")) {
+            heaterItem.setUseExternalSensor(doc["useExternalSensor"].as<bool>());
+        }
+        if (doc.containsKey("externalSensorTopic")) {
+            heaterItem.setExternalSensorTopic(doc["externalSensorTopic"].as<const char*>());
+        }
     }
 }
 
@@ -1210,8 +1265,19 @@ void processSettingsForm(AsyncWebServerRequest* request) {
     if (request->hasParam("temperatureAdjust", true)) {
         heaterItems[itemNo].setTemperatureAdjust(request->getParam("temperatureAdjust", true)->value().c_str());
     }
+    if (request->hasParam("useExternalSensor", true)) {
+        heaterItems[itemNo].setUseExternalSensor(true);
+    } else {
+        heaterItems[itemNo].setUseExternalSensor(false);
+    }
+    if (request->hasParam("externalSensorTopic", true)) {
+        heaterItems[itemNo].setExternalSensorTopic(request->getParam("externalSensorTopic", true)->value().c_str());
+    }
 
     saveState(heaterItems[itemNo]);
+    if (mqttClient.connected()) {
+        subscribeToExternalSensors();
+    }
     request->send(LittleFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     if (xSemaphoreTake(mutex, portMAX_DELAY)) {
         processHeaters();
@@ -1334,14 +1400,12 @@ void initHeaters() {
     requestTemperatures();
     delay(READ_SENSORS_DELAY);
     readTemperatures();
-    reportHeatersState();
     processHeaters();
     heatersInitialized = true;
     debugPrintln("Heaters initialized");
 }
 
 void initHeater(HeaterItem& heater) {
-    heater.setUsesAuxAdjust(false);
     heater.setHysteresis(settings.hysteresis);
     heater.setOutputCallBack(heaterItemOutputCallback);
     heater.setNotificationCallBack(heaterItemNotificationCallback);
@@ -1356,7 +1420,7 @@ void initHeater(HeaterItem& heater) {
 }
 
 void sanityCheckHeater(HeaterItem& heater) {
-    if (!heater.getIsConnected() && !heater.getUsesAuxAdjust()) {
+    if (!heater.getIsConnected() && !heater.isExternalSensorActive()) {
             heater.setIsAuto(false); //Items with no temperature sensor can't be in auto mode
     }
     if (heater.getPhase() == HeaterItem::UNCONFIGURED || heater.getPort() == HeaterItem::UNCONFIGURED) {
@@ -1946,10 +2010,9 @@ void setup()
         ElegantOTA.loop();
     }
 
-    mqttConnect();
-
     //init heaterItems
     initHeaters(); //will also fill unconnected sensors
+    
     for (uint8_t i=0; i<sensorsCount; i++) {
         if (!checkSensorConfigured(&sensorAddresses[i])) {
             String sensor;
@@ -1959,6 +2022,8 @@ void setup()
             debugPrintln(" is connected but not configured.");
         }
     }
+
+    mqttConnect();
 
     //wait 5 seconds to get energy meter data from mqtt
     now = millis();
@@ -1974,7 +2039,7 @@ void setup()
     mutex = xSemaphoreCreateMutex();
 
     //stack size calculation based on empirical data
-    xTaskCreate(taskSystem, "System", 8192, NULL, 1, &hndlSystem);
+    xTaskCreate(taskSystem, "System", 12288, NULL, 1, &hndlSystem);  // Increased for external sensor MQTT handling
     xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
 }
 
