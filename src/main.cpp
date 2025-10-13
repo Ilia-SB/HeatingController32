@@ -208,13 +208,40 @@ void heaterItemNotificationCallback(HeaterItem& heater) {
     reportHeaterState(heater);
 }
 
+// Helper function to safely write to TCP client
+// Returns false if write failed or timed out
+inline bool tcpSafeWrite(const String& msg) {
+    if (!tcpClient.connected()) {
+        return false;
+    }
+    // availableForWrite() checks if there's buffer space
+    // This prevents blocking on full buffers
+    if (tcpClient.availableForWrite() < msg.length()) {
+        return false; // Skip this write to avoid blocking
+    }
+    size_t written = tcpClient.print(msg);
+    return (written == msg.length());
+}
+
+inline bool tcpSafeWrite(const char* msg) {
+    if (!tcpClient.connected()) {
+        return false;
+    }
+    size_t len = strlen(msg);
+    if (tcpClient.availableForWrite() < len) {
+        return false;
+    }
+    size_t written = tcpClient.print(msg);
+    return (written == len);
+}
+
 // Debug output functions
 void debugPrint(const String& msg) {
     if (settings.debugSerial) {
         Serial.print(msg);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
-        tcpClient.print(msg);
+    if (settings.debugTcp) {
+        tcpSafeWrite(msg);
     }
 }
 
@@ -222,8 +249,8 @@ void debugPrint(const char* msg) {
     if (settings.debugSerial) {
         Serial.print(msg);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
-        tcpClient.print(msg);
+    if (settings.debugTcp) {
+        tcpSafeWrite(msg);
     }
 }
 
@@ -231,7 +258,7 @@ void debugPrint(int val) {
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 10) {
         tcpClient.print(val);
     }
 }
@@ -240,7 +267,7 @@ void debugPrint(unsigned int val) {
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 10) {
         tcpClient.print(val);
     }
 }
@@ -249,7 +276,7 @@ void debugPrint(long val) {
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 15) {
         tcpClient.print(val);
     }
 }
@@ -258,7 +285,7 @@ void debugPrint(unsigned long val) {
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 15) {
         tcpClient.print(val);
     }
 }
@@ -267,7 +294,7 @@ void debugPrint(float val) {
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 15) {
         tcpClient.print(val);
     }
 }
@@ -276,7 +303,7 @@ void debugPrintln() {
     if (settings.debugSerial) {
         Serial.println();
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 2) {
         tcpClient.println();
     }
 }
@@ -285,7 +312,7 @@ void debugPrintln(const String& msg) {
     if (settings.debugSerial) {
         Serial.println(msg);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > msg.length() + 2) {
         tcpClient.println(msg);
     }
 }
@@ -294,8 +321,11 @@ void debugPrintln(const char* msg) {
     if (settings.debugSerial) {
         Serial.println(msg);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
-        tcpClient.println(msg);
+    if (settings.debugTcp) {
+        size_t len = strlen(msg);
+        if (tcpClient.connected() && tcpClient.availableForWrite() > len + 2) {
+            tcpClient.println(msg);
+        }
     }
 }
 
@@ -303,7 +333,7 @@ void debugPrintln(int val) {
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 12) {
         tcpClient.println(val);
     }
 }
@@ -312,7 +342,7 @@ void debugPrintln(unsigned int val) {
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 12) {
         tcpClient.println(val);
     }
 }
@@ -321,7 +351,7 @@ void debugPrintln(long val) {
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 17) {
         tcpClient.println(val);
     }
 }
@@ -330,7 +360,7 @@ void debugPrintln(unsigned long val) {
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 17) {
         tcpClient.println(val);
     }
 }
@@ -339,7 +369,7 @@ void debugPrintln(float val) {
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 17) {
         tcpClient.println(val);
     }
 }
@@ -348,7 +378,7 @@ void debugPrintDec(int val) {
     if (settings.debugSerial) {
         Serial.print(val, DEC);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 10) {
         tcpClient.print(val, DEC);
     }
 }
@@ -357,7 +387,7 @@ void debugPrintHex(int val) {
     if (settings.debugSerial) {
         Serial.print(val, HEX);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 10) {
         tcpClient.print(val, HEX);
     }
 }
@@ -368,7 +398,7 @@ void debugPrintArray(uint8_t* arr, uint8_t len) {
             Serial.print(arr[i]);
             Serial.print(" ");
         }
-        if (settings.debugTcp && tcpClient.connected()) {
+        if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 10) {
             tcpClient.print(arr[i]);
             tcpClient.print(" ");
         }
@@ -381,7 +411,7 @@ void debugStack() {
     if (settings.debugSerial) {
         Serial.println(msg);
     }
-    if (settings.debugTcp && tcpClient.connected()) {
+    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > msg.length() + 2) {
         tcpClient.println(msg);
     }
 }
@@ -628,6 +658,9 @@ bool tcpConnect() {
     if (tcpClient.connect(settings.tcpUrl.c_str(), settings.tcpPort)) {
         Serial.println("TCP client connected.");
         tcpClient.setNoDelay(true);
+        // Set socket timeout to prevent blocking indefinitely
+        // This prevents task watchdog crashes when TCP server is slow
+        tcpClient.setTimeout(100); // 100ms timeout for write operations
         return true;
     } else {
         Serial.println("TCP client connect failed.");
@@ -1473,10 +1506,14 @@ void processHeatersOutput(HeaterItem* heater) {
 }
 
 void processHeaters() {
-    if (flagRestartNow)
+    if (flagRestartNow) {
         return;
+    }
     debugPrintln("Processing heaters...");
     for (uint8_t phase=0; phase<NUMBER_OF_PHASES; phase++) {
+        // Feed watchdog to prevent timeout during heavy debug output
+        vTaskDelay(1 / portTICK_PERIOD_MS);
+        
         debugPrint("Phase "); debugPrint(phase + 1);
         int16_t availablePower = 0;
         bool usingEstimatedConsumption = false;
@@ -1541,6 +1578,9 @@ void processHeaters() {
         }
         //emergency
         if (flagEmergency[phase]) {
+            // Feed watchdog during emergency handling
+            vTaskDelay(1 / portTICK_PERIOD_MS);
+            
             debugPrintln("Phase is in emergency state");
             /*
             if (usingEstimatedConsumption == false) {
