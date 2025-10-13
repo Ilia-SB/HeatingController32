@@ -872,6 +872,15 @@ String webServerPlaceholderProcessor(const String& placeholder) {
         retValue += "<tr><td class=\"name\">TCP debug</td><td class=\"value\"><input type=\"checkbox\" name=\"debugTcp\"";
         retValue += settings.debugTcp?" checked":"";
         retValue += "></td></tr>";
+        retValue += "<tr><td class=\"name\">NTP Server</td><td class=\"value\"><input type=\"text\" name=\"ntpServer\" value=\"";
+        retValue += settings.ntpServer;
+        retValue += "\"></td></tr>";
+        retValue += "<tr><td class=\"name\">GMT Offset (hours)</td><td class=\"value\"><input type=\"number\" name=\"gmtOffsetHours\" min=\"-12\" max=\"14\" value=\"";
+        retValue += String(settings.gmtOffsetHours);
+        retValue += "\"></td></tr>";
+        retValue += "<tr><td class=\"name\">Daylight Saving (hours)</td><td class=\"value\"><input type=\"number\" name=\"daylightOffsetHours\" min=\"0\" max=\"1\" value=\"";
+        retValue += String(settings.daylightOffsetHours);
+        retValue += "\"></td></tr>";
         for (uint8_t i=1; i<NUMBER_OF_PHASES+1; i++) {
             retValue += "<tr><td class=\"name\">Phase ";
             retValue += String(i);
@@ -1215,6 +1224,15 @@ void processSettingsForm(AsyncWebServerRequest* request) {
             settings.debugTcp = true;
         } else {
             settings.debugTcp = false;
+        }
+        if (request->hasParam(SETTINGS_NTP_SERVER, true)) {
+            settings.ntpServer = request->getParam(SETTINGS_NTP_SERVER, true)->value();
+        }
+        if (request->hasParam(SETTINGS_GMT_OFFSET, true)) {
+            settings.gmtOffsetHours = request->getParam(SETTINGS_GMT_OFFSET, true)->value().toInt();
+        }
+        if (request->hasParam(SETTINGS_DAYLIGHT_OFFSET, true)) {
+            settings.daylightOffsetHours = request->getParam(SETTINGS_DAYLIGHT_OFFSET, true)->value().toInt();
         }
         for (uint8_t i=1; i<NUMBER_OF_PHASES+1; i++) {
             String paramName = "phase_";
