@@ -33,7 +33,6 @@ void taskSystem(void* pvParameters);
 void taskMain(void* pvParameters);
 
 WiFiClient ethClient;
-WiFiClient tcpClient;
 static bool ethConnected = false;
 
 AsyncWebServer server(80);
@@ -147,6 +146,8 @@ void onOtaEnd(bool);
 
 void heaterItemOutputCallback(uint8_t, bool);
 void heaterItemNotificationCallback(HeaterItem& heater);
+uint32_t getNextBootNumber(void);
+void onDebugWebSocketEvent(AsyncWebSocket*, AsyncWebSocketClient*, AwsEventType, void*, uint8_t*, size_t);
 
 void ethernetLed(uint8_t mode) {
     digitalWrite(ETHERNET_LED, mode);
@@ -208,31 +209,86 @@ void heaterItemNotificationCallback(HeaterItem& heater) {
     reportHeaterState(heater);
 }
 
-// Helper function to safely write to TCP client
-// Returns false if write failed or timed out
-inline bool tcpSafeWrite(const String& msg) {
-    if (!tcpClient.connected()) {
-        return false;
+// Circular debug buffer with head/tail pointers
+char debugBuffer[DEBUG_BUFFER_SIZE];
+volatile uint16_t debugBufferHead = 0;  // Read position (oldest data)
+volatile uint16_t debugBufferTail = 0;  // Write position (next write goes here)
+SemaphoreHandle_t debugBufferMutex = NULL;
+
+// WebSocket for real-time debug streaming
+AsyncWebSocket wsDebug("/ws/debug");
+AsyncWebSocketClient* wsDebugClient = NULL;  // Single client tracking
+volatile bool wsDebugStreaming = false;      // true = direct push, false = buffer
+
+// Global buffer for number to string conversions - prevents stack buffer issues with async WebSocket
+static char globalNumBuffer[32];
+
+// WebSocket send buffer - batch messages to avoid overwhelming the send queue
+static String wsSendBuffer;
+static unsigned long wsLastSendTime = 0;
+#define WS_SEND_BATCH_SIZE 512       // Send when buffer reaches this size
+#define WS_SEND_BATCH_INTERVAL 50    // Or send every 50ms
+
+// Stack watermarks for tasks
+volatile UBaseType_t taskSystemStackWatermark = 0;
+volatile UBaseType_t taskMainStackWatermark = 0;
+
+// Flush WebSocket send buffer
+void flushWebSocketBuffer() {
+    if (wsSendBuffer.length() > 0 && wsDebugClient != NULL && wsDebugClient->canSend()) {
+        wsDebugClient->text(wsSendBuffer);
+        wsSendBuffer = "";
+        wsLastSendTime = millis();
     }
-    // availableForWrite() checks if there's buffer space
-    // This prevents blocking on full buffers
-    if (tcpClient.availableForWrite() < msg.length()) {
-        return false; // Skip this write to avoid blocking
-    }
-    size_t written = tcpClient.print(msg);
-    return (written == msg.length());
 }
 
-inline bool tcpSafeWrite(const char* msg) {
-    if (!tcpClient.connected()) {
-        return false;
+// Helper function to write to circular debug buffer or stream to WebSocket
+void writeToDebugBuffer(const char* msg, size_t len) {
+    if (debugBufferMutex == NULL) {
+        return; // Mutex not initialized yet
     }
-    size_t len = strlen(msg);
-    if (tcpClient.availableForWrite() < len) {
-        return false;
+    
+    if (xSemaphoreTake(debugBufferMutex, pdMS_TO_TICKS(10))) {
+        if (wsDebugStreaming && wsDebugClient != NULL) {
+            // Batch messages to avoid overwhelming WebSocket send queue
+            // Append to send buffer
+            for (size_t i = 0; i < len; i++) {
+                wsSendBuffer += msg[i];
+            }
+            
+            // Check if we need to flush
+            bool shouldFlush = false;
+            
+            // Flush if buffer is getting large
+            if (wsSendBuffer.length() >= WS_SEND_BATCH_SIZE) {
+                shouldFlush = true;
+            }
+            // Flush if we see a newline (end of log line)
+            else if (len > 0 && msg[len - 1] == '\n') {
+                shouldFlush = true;
+            }
+            // Flush if enough time has passed
+            else if (millis() - wsLastSendTime >= WS_SEND_BATCH_INTERVAL) {
+                shouldFlush = true;
+            }
+            
+            if (shouldFlush) {
+                flushWebSocketBuffer();
+            }
+        } else {
+            // Buffer the message
+            for (size_t i = 0; i < len; i++) {
+                debugBuffer[debugBufferTail] = msg[i];
+                debugBufferTail = (debugBufferTail + 1) % DEBUG_BUFFER_SIZE;
+                
+                // If tail catches up to head, advance head (overwrite oldest data)
+                if (debugBufferTail == debugBufferHead) {
+                    debugBufferHead = (debugBufferHead + 1) % DEBUG_BUFFER_SIZE;
+                }
+            }
+        }
+        xSemaphoreGive(debugBufferMutex);
     }
-    size_t written = tcpClient.print(msg);
-    return (written == len);
 }
 
 // Debug output functions
@@ -240,168 +296,149 @@ void debugPrint(const String& msg) {
     if (settings.debugSerial) {
         Serial.print(msg);
     }
-    if (settings.debugTcp) {
-        tcpSafeWrite(msg);
-    }
+    writeToDebugBuffer(msg.c_str(), msg.length());
 }
 
 void debugPrint(const char* msg) {
     if (settings.debugSerial) {
         Serial.print(msg);
     }
-    if (settings.debugTcp) {
-        tcpSafeWrite(msg);
-    }
+    writeToDebugBuffer(msg, strlen(msg));
 }
 
 void debugPrint(int val) {
+    itoa(val, globalNumBuffer, 10);
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 10) {
-        tcpClient.print(val);
-    }
+    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
 }
 
 void debugPrint(unsigned int val) {
+    utoa(val, globalNumBuffer, 10);
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 10) {
-        tcpClient.print(val);
-    }
+    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
 }
 
 void debugPrint(long val) {
+    ltoa(val, globalNumBuffer, 10);
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 15) {
-        tcpClient.print(val);
-    }
+    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
 }
 
 void debugPrint(unsigned long val) {
+    ultoa(val, globalNumBuffer, 10);
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 15) {
-        tcpClient.print(val);
-    }
+    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
 }
 
 void debugPrint(float val) {
+    dtostrf(val, 0, 2, globalNumBuffer);
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 15) {
-        tcpClient.print(val);
-    }
+    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
 }
 
 void debugPrintln() {
     if (settings.debugSerial) {
         Serial.println();
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 2) {
-        tcpClient.println();
-    }
+    writeToDebugBuffer("\n", 1);
 }
 
 void debugPrintln(const String& msg) {
     if (settings.debugSerial) {
         Serial.println(msg);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > msg.length() + 2) {
-        tcpClient.println(msg);
-    }
+    writeToDebugBuffer(msg.c_str(), msg.length());
+    writeToDebugBuffer("\n", 1);
 }
 
 void debugPrintln(const char* msg) {
     if (settings.debugSerial) {
         Serial.println(msg);
     }
-    if (settings.debugTcp) {
-        size_t len = strlen(msg);
-        if (tcpClient.connected() && tcpClient.availableForWrite() > len + 2) {
-            tcpClient.println(msg);
-        }
-    }
+    writeToDebugBuffer(msg, strlen(msg));
+    writeToDebugBuffer("\n", 1);
 }
 
 void debugPrintln(int val) {
+    itoa(val, globalNumBuffer, 10);
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 12) {
-        tcpClient.println(val);
-    }
+    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer("\n", 1);
 }
 
 void debugPrintln(unsigned int val) {
+    utoa(val, globalNumBuffer, 10);
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 12) {
-        tcpClient.println(val);
-    }
+    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer("\n", 1);
 }
 
 void debugPrintln(long val) {
+    ltoa(val, globalNumBuffer, 10);
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 17) {
-        tcpClient.println(val);
-    }
+    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer("\n", 1);
 }
 
 void debugPrintln(unsigned long val) {
+    ultoa(val, globalNumBuffer, 10);
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 17) {
-        tcpClient.println(val);
-    }
+    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer("\n", 1);
 }
 
 void debugPrintln(float val) {
+    dtostrf(val, 0, 2, globalNumBuffer);
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 17) {
-        tcpClient.println(val);
-    }
+    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer("\n", 1);
 }
 
 void debugPrintDec(int val) {
+    itoa(val, globalNumBuffer, 10);
     if (settings.debugSerial) {
         Serial.print(val, DEC);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 10) {
-        tcpClient.print(val, DEC);
-    }
+    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
 }
 
 void debugPrintHex(int val) {
+    itoa(val, globalNumBuffer, 16);
     if (settings.debugSerial) {
         Serial.print(val, HEX);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 10) {
-        tcpClient.print(val, HEX);
-    }
+    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
 }
 
 void debugPrintArray(uint8_t* arr, uint8_t len) {
     for (uint8_t i = 0; i < len; i++) {
+        itoa(arr[i], globalNumBuffer, 10);
         if (settings.debugSerial) {
             Serial.print(arr[i]);
             Serial.print(" ");
         }
-        if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > 10) {
-            tcpClient.print(arr[i]);
-            tcpClient.print(" ");
-        }
+        writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+        writeToDebugBuffer(" ", 1);
     }
 }
 
@@ -411,8 +448,89 @@ void debugStack() {
     if (settings.debugSerial) {
         Serial.println(msg);
     }
-    if (settings.debugTcp && tcpClient.connected() && tcpClient.availableForWrite() > msg.length() + 2) {
-        tcpClient.println(msg);
+    writeToDebugBuffer(msg.c_str(), msg.length());
+    writeToDebugBuffer("\n", 1);
+}
+
+// WebSocket event handler for debug streaming
+void onDebugWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client, 
+                           AwsEventType type, void* arg, uint8_t* data, size_t len) {
+    switch (type) {
+        case WS_EVT_CONNECT:
+            {
+                debugPrint("WebSocket client connected from ");
+                debugPrintln(client->remoteIP().toString());
+                
+                // Disconnect previous client if exists
+                if (wsDebugClient != NULL && wsDebugClient != client) {
+                    debugPrintln("Disconnecting previous WebSocket client");
+                    wsDebugClient->close();
+                }
+                
+                wsDebugClient = client;
+                
+                // Push entire buffer to client
+                if (debugBufferMutex != NULL && xSemaphoreTake(debugBufferMutex, pdMS_TO_TICKS(100))) {
+                    uint16_t head = debugBufferHead;
+                    uint16_t tail = debugBufferTail;
+                    
+                    // Build buffer contents
+                    String bufferContents = "";
+                    uint16_t pos = head;
+                    while (pos != tail) {
+                        bufferContents += debugBuffer[pos];
+                        pos = (pos + 1) % DEBUG_BUFFER_SIZE;
+                    }
+                    
+                    // Send buffer if not empty
+                    if (bufferContents.length() > 0) {
+                        client->text(bufferContents);
+                    }
+                    
+                    // Clear buffer
+                    debugBufferHead = 0;
+                    debugBufferTail = 0;
+                    
+                    xSemaphoreGive(debugBufferMutex);
+                }
+                
+                // Send current watermarks
+                String json = "{\"taskSystemStack\":" + String(taskSystemStackWatermark) + 
+                             ",\"taskMainStack\":" + String(taskMainStackWatermark) + "}";
+                client->text(json);
+                
+                // Enable streaming
+                wsDebugStreaming = true;
+                
+                debugPrintln("WebSocket streaming enabled");
+            }
+            break;
+            
+        case WS_EVT_DISCONNECT:
+            debugPrint("WebSocket client disconnected: ");
+            debugPrintln(client->id());
+            
+            if (client == wsDebugClient) {
+                wsDebugClient = NULL;
+                wsDebugStreaming = false;
+                debugPrintln("WebSocket streaming disabled, resuming buffering");
+            }
+            break;
+            
+        case WS_EVT_ERROR:
+            debugPrint("WebSocket error from client ");
+            debugPrint(client->id());
+            debugPrint(": ");
+            debugPrintln((char*)data);
+            break;
+            
+        case WS_EVT_DATA:
+            // We don't expect data from client, ignore
+            break;
+            
+        case WS_EVT_PONG:
+            // Pong received, connection is alive
+            break;
     }
 }
 
@@ -650,24 +768,6 @@ void subscribeToExternalSensors() {
     }
 }
 
-bool tcpConnect() {
-    if (!ethConnected) {
-        return false;
-    }
-
-    if (tcpClient.connect(settings.tcpUrl.c_str(), settings.tcpPort)) {
-        Serial.println("TCP client connected.");
-        tcpClient.setNoDelay(true);
-        // Set socket timeout to prevent blocking indefinitely
-        // This prevents task watchdog crashes when TCP server is slow
-        tcpClient.setTimeout(100); // 100ms timeout for write operations
-        return true;
-    } else {
-        Serial.println("TCP client connect failed.");
-        return false;
-    }
-}
-
 bool mqttConnect() {
     if (!ethConnected) {
         mqttLed(LOW);
@@ -893,17 +993,8 @@ String webServerPlaceholderProcessor(const String& placeholder) {
         retValue += "<tr><td class=\"name\">MQTT port</td><td class=\"value\"><input type=\"text\" name=\"mqttPort\" value=\"";
         retValue += String(settings.mqttPort);
         retValue += "\"></td></tr>";
-        retValue += "<tr><td class=\"name\">TCP debug url</td><td class=\"value\"><input type=\"text\" name=\"tcpUrl\" value=\"";
-        retValue += settings.tcpUrl;
-        retValue += "\"></td></tr>";
-        retValue += "<tr><td class=\"name\">TCP debug port</td><td class=\"value\"><input type=\"text\" name=\"tcpPort\" value=\"";
-        retValue += String(settings.tcpPort);
-        retValue += "\"></td></tr>";
         retValue += "<tr><td class=\"name\">Serial debug</td><td class=\"value\"><input type=\"checkbox\" name=\"debugSerial\"";
         retValue += settings.debugSerial?" checked":"";
-        retValue += "></td></tr>";
-        retValue += "<tr><td class=\"name\">TCP debug</td><td class=\"value\"><input type=\"checkbox\" name=\"debugTcp\"";
-        retValue += settings.debugTcp?" checked":"";
         retValue += "></td></tr>";
         retValue += "<tr><td class=\"name\">NTP Server</td><td class=\"value\"><input type=\"text\" name=\"ntpServer\" value=\"";
         retValue += settings.ntpServer;
@@ -960,6 +1051,56 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += " (";
             retValue += unconnectedSensors[i]->getName();
             retValue += ")</li>";
+        }
+    }
+    if (placeholder.equals("DEBUG_UPDATE_INTERVAL")) {
+        retValue = String(DEBUG_PAGE_UPDATE_INTERVAL);
+    }
+    if (placeholder.equals("TOTAL_REBOOTS")) {
+        uint32_t totalReboots = getNextBootNumber() - 1;
+        retValue = String(totalReboots);
+    }
+    if (placeholder.equals("LAST_REBOOT_TIME")) {
+        retValue = "No time available";
+        if (LittleFS.exists(REBOOT_LOG_FILE)) {
+            File file = LittleFS.open(REBOOT_LOG_FILE, FILE_READ);
+            if (file) {
+                String lastLine = "";
+                while (file.available()) {
+                    String line = file.readStringUntil('\n');
+                    if (line.length() > 0) {
+                        lastLine = line;
+                    }
+                }
+                file.close();
+                // Parse timestamp from format "N. [timestamp] reason"
+                int firstBracket = lastLine.indexOf('[');
+                int secondBracket = lastLine.indexOf(']');
+                if (firstBracket > 0 && secondBracket > firstBracket) {
+                    retValue = lastLine.substring(firstBracket + 1, secondBracket);
+                }
+            }
+        }
+    }
+    if (placeholder.equals("LAST_REBOOT_REASON")) {
+        retValue = "Unknown";
+        if (LittleFS.exists(REBOOT_LOG_FILE)) {
+            File file = LittleFS.open(REBOOT_LOG_FILE, FILE_READ);
+            if (file) {
+                String lastLine = "";
+                while (file.available()) {
+                    String line = file.readStringUntil('\n');
+                    if (line.length() > 0) {
+                        lastLine = line;
+                    }
+                }
+                file.close();
+                // Parse reason from format "N. [timestamp] reason"
+                int secondBracket = lastLine.indexOf(']');
+                if (secondBracket > 0 && secondBracket + 2 < lastLine.length()) {
+                    retValue = lastLine.substring(secondBracket + 2);
+                }
+            }
         }
     }
     return retValue;
@@ -1025,9 +1166,6 @@ void setDefaultSettings(Settings& settings) {
     settings.mqttUrl = MQTT_URL;
     settings.mqttPort = MQTT_PORT;
     settings.debugSerial = true;
-    settings.debugTcp = true;
-    settings.tcpUrl = TCP_URL;
-    settings.tcpPort = TCP_PORT;
     settings.ntpServer = NTP_SERVER;
     settings.gmtOffsetHours = GMT_OFFSET_HOURS;
     settings.daylightOffsetHours = DAYLIGHT_OFFSET_HOURS;
@@ -1104,9 +1242,6 @@ void saveSettings(Settings& settings) {
     doc[SETTINGS_MQTT_URL] = settings.mqttUrl;
     doc[SETTINGS_MQTT_PORT] = settings.mqttPort;
     doc[SETTINGS_DEBUG_SERIAL] = settings.debugSerial;
-    doc[SETTINGS_DEBUG_TCP] = settings.debugTcp;
-    doc[SETTINGS_TCP_URL] = settings.tcpUrl;
-    doc[SETTINGS_TCP_PORT] = settings.tcpPort;
     doc[SETTINGS_NTP_SERVER] = settings.ntpServer;
     doc[SETTINGS_GMT_OFFSET] = settings.gmtOffsetHours;
     doc[SETTINGS_DAYLIGHT_OFFSET] = settings.daylightOffsetHours;
@@ -1162,9 +1297,6 @@ void loadSettings(Settings& settings) {
         settings.mqttUrl = doc[SETTINGS_MQTT_URL].as<String>();
         settings.mqttPort = doc[SETTINGS_MQTT_PORT].as<uint16_t>();
         settings.debugSerial = doc.containsKey(SETTINGS_DEBUG_SERIAL) ? doc[SETTINGS_DEBUG_SERIAL].as<bool>() : true;
-        settings.debugTcp = doc.containsKey(SETTINGS_DEBUG_TCP) ? doc[SETTINGS_DEBUG_TCP].as<bool>() : true;
-        settings.tcpUrl = doc.containsKey(SETTINGS_TCP_URL) ? doc[SETTINGS_TCP_URL].as<String>() : TCP_URL;
-        settings.tcpPort = doc.containsKey(SETTINGS_TCP_PORT) ? doc[SETTINGS_TCP_PORT].as<uint16_t>() : TCP_PORT;
         settings.ntpServer = doc.containsKey(SETTINGS_NTP_SERVER) ? doc[SETTINGS_NTP_SERVER].as<String>() : NTP_SERVER;
         settings.gmtOffsetHours = doc.containsKey(SETTINGS_GMT_OFFSET) ? doc[SETTINGS_GMT_OFFSET].as<int>() : GMT_OFFSET_HOURS;
         settings.daylightOffsetHours = doc.containsKey(SETTINGS_DAYLIGHT_OFFSET) ? doc[SETTINGS_DAYLIGHT_OFFSET].as<int>() : DAYLIGHT_OFFSET_HOURS;
@@ -1242,21 +1374,10 @@ void processSettingsForm(AsyncWebServerRequest* request) {
         if (request->hasParam(SETTINGS_MQTT_PORT, true)) {
             settings.mqttPort = request->getParam(SETTINGS_MQTT_PORT, true)->value().toInt();
         }
-        if (request->hasParam(SETTINGS_TCP_URL, true)) {
-            settings.tcpUrl = request->getParam(SETTINGS_TCP_URL, true)->value();
-        }
-        if (request->hasParam(SETTINGS_TCP_PORT, true)) {
-            settings.tcpPort = request->getParam(SETTINGS_TCP_PORT, true)->value().toInt();
-        }
         if (request->hasParam(SETTINGS_DEBUG_SERIAL, true)) {
             settings.debugSerial = true;
         } else {
             settings.debugSerial = false;
-        }
-        if (request->hasParam(SETTINGS_DEBUG_TCP, true)) {
-            settings.debugTcp = true;
-        } else {
-            settings.debugTcp = false;
         }
         if (request->hasParam(SETTINGS_NTP_SERVER, true)) {
             settings.ntpServer = request->getParam(SETTINGS_NTP_SERVER, true)->value();
@@ -1680,7 +1801,6 @@ uint16_t calculateHeatersConsumption(uint8_t phase) {
 void taskSystem(void* pvParameters) {
     while(true) {
         if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-            debugPrint(">S>"); debugStack();
             ElegantOTA.loop();
             if (flagRestartNow) {
                 // Gracefully disconnect MQTT
@@ -1688,13 +1808,7 @@ void taskSystem(void* pvParameters) {
                     mqttClient.disconnect();
                 }
                 
-                // Gracefully close TCP connection
-                if (tcpClient.connected()) {
-                    tcpClient.stop();   // Initiate TCP close (FIN)
-                }
-                
-                // Wait for TCP close handshake to complete
-                // TCP requires FIN/ACK/FIN/ACK sequence
+                // Wait before restart
                 vTaskDelay(2000 / portTICK_PERIOD_MS);
                 
                 ESP.restart();
@@ -1710,9 +1824,17 @@ void taskSystem(void* pvParameters) {
                 flagProcessHeatersNow = false;
                 processHeaters();
             }
-            debugPrint("<S<"); debugStack();
             xSemaphoreGive(mutex);
         }
+        taskSystemStackWatermark = uxTaskGetStackHighWaterMark(NULL);
+        
+        // Push watermarks to WebSocket client if connected
+        if (wsDebugStreaming && wsDebugClient != NULL && wsDebugClient->canSend()) {
+            String json = "{\"taskSystemStack\":" + String(taskSystemStackWatermark) + 
+                         ",\"taskMainStack\":" + String(taskMainStackWatermark) + "}";
+            wsDebugClient->text(json);
+        }
+        
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
@@ -1720,14 +1842,13 @@ void taskSystem(void* pvParameters) {
 void taskMain(void* pvParameters) {
     while(true) {
         if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-            debugPrint(">M>"); debugStack();
             requestTemperatures();
             vTaskDelay(READ_SENSORS_DELAY / portTICK_PERIOD_MS);
             readTemperatures();
             processHeaters();
-            debugPrint("<M<"); debugStack();
             xSemaphoreGive(mutex);
         }
+        taskMainStackWatermark = uxTaskGetStackHighWaterMark(NULL);
         vTaskDelay(TEMPERATURE_READ_INTERVAL / portTICK_PERIOD_MS);
     }
 }
@@ -1879,6 +2000,9 @@ void setup()
 
     updateOutputs(0);
 
+    // Initialize debug buffer mutex early to capture all setup debug messages
+    debugBufferMutex = xSemaphoreCreateMutex();
+
     iTimer.attachInterruptInterval(ITIMER_INTERVAL_MS * 1000, TimerHandler);
 
     ISR_Timer.setInterval(LED_BLINK_FAST, isrTimerCallbacks[TIMER_NUM_MQTT_LED_BLINK]);
@@ -1901,14 +2025,6 @@ void setup()
     //init settings
     loadSettings(settings);
 
-    if (settings.debugTcp) {
-        auto now = millis();
-        while(millis() - now < 2000) {
-            if (tcpConnect()) {
-                break;
-            }
-        }
-    }
     debugPrintln();debugPrint("HeatingController32 ");debugPrint(VERSION_SHORT);debugPrintln(" starting...");
     debugPrintln("Debug output enabled");
     
@@ -1952,10 +2068,7 @@ void setup()
     debugPrint("Hysteresis: "); debugPrintln(settings.hysteresis);
     debugPrint("MQTT url: "); debugPrintln(settings.mqttUrl);
     debugPrint("Mqtt port: "); debugPrintln(settings.mqttPort);
-    debugPrint("TCP debug url: "); debugPrintln(settings.tcpUrl);
-    debugPrint("TCP debug port: "); debugPrintln(settings.tcpPort);
     debugPrint("Serial debug: "); debugPrintln(settings.debugSerial);
-    debugPrint("TCP debug: "); debugPrintln(settings.debugTcp);
     for (uint8_t i=0; i<NUMBER_OF_PHASES; i++) {
         debugPrint("Phase ");debugPrint(i); debugPrint(": consumption limit: ");debugPrintln(settings.consumptionLimit[i]);
     }
@@ -2017,6 +2130,67 @@ void setup()
     server.on("/backup", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(LittleFS, "/backup.html", String(), false, webServerPlaceholderProcessor);
     });
+    server.on("/debug", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(LittleFS, "/debug.html", String(), false, webServerPlaceholderProcessor);
+    });
+    server.on("/debug.json", HTTP_GET, [](AsyncWebServerRequest* request) {
+        // Build JSON response manually to avoid ArduinoJson size limitations
+        String response = "{";
+        response += "\"taskSystemStack\":" + String(taskSystemStackWatermark) + ",";
+        response += "\"taskMainStack\":" + String(taskMainStackWatermark) + ",";
+        
+        // Read debug buffer using head/tail circular buffer logic
+        String debugOutput = "";
+        if (debugBufferMutex != NULL && xSemaphoreTake(debugBufferMutex, pdMS_TO_TICKS(100))) {
+            uint16_t head = debugBufferHead;
+            uint16_t tail = debugBufferTail;
+            
+            // Calculate data length
+            uint16_t dataLen;
+            if (tail >= head) {
+                dataLen = tail - head;
+            } else {
+                dataLen = DEBUG_BUFFER_SIZE - head + tail;
+            }
+            
+            // Read from head to tail (wrapping around if necessary)
+            uint16_t pos = head;
+            while (pos != tail) {
+                char c = debugBuffer[pos];
+                
+                // Escape special JSON characters
+                if (c == '"') {
+                    debugOutput += "\\\"";
+                } else if (c == '\\') {
+                    debugOutput += "\\\\";
+                } else if (c == '\n') {
+                    debugOutput += "\\n";
+                } else if (c == '\r') {
+                    debugOutput += "\\r";
+                } else if (c == '\t') {
+                    debugOutput += "\\t";
+                } else {
+                    debugOutput += c;
+                }
+                
+                pos = (pos + 1) % DEBUG_BUFFER_SIZE;
+            }
+            
+            xSemaphoreGive(debugBufferMutex);
+            
+            // Add debug info to response
+            response += "\"head\":" + String(head) + ",";
+            response += "\"tail\":" + String(tail) + ",";
+            response += "\"dataLen\":" + String(dataLen) + ",";
+        } else {
+            debugOutput = "Failed to acquire mutex";
+        }
+        
+        response += "\"debugOutput\":\"" + debugOutput + "\"";
+        response += "}";
+        
+        request->send(200, "application/json", response);
+    });
     server.on("/rebooting.html", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(LittleFS, "/rebooting.html", "text/html");
     });
@@ -2058,13 +2232,21 @@ void setup()
     ElegantOTA.onStart(onOtaStart);
     ElegantOTA.onEnd(onOtaEnd);
     ElegantOTA.begin(&server);
+    
+    // Register WebSocket handler for debug streaming
+    wsDebug.onEvent(onDebugWebSocketEvent);
+    server.addHandler(&wsDebug);
+    
     server.begin();
 
     // Wait 1 minute to allow OTA firmware update in case board crashes after starting tasks
-    debugPrintln("Upload firmware now...");
-    auto now = millis();
-    while(millis() - now < 60000) {
-        ElegantOTA.loop();
+    esp_reset_reason_t reason = esp_reset_reason();
+    if (reason != ESP_RST_SW) {
+        debugPrintln("Upload firmware now...");
+        auto now = millis();
+        while(millis() - now < 60000) {
+            ElegantOTA.loop();
+        }
     }
 
     //init heaterItems
@@ -2083,7 +2265,7 @@ void setup()
     mqttConnect();
 
     //wait 5 seconds to get energy meter data from mqtt
-    now = millis();
+    auto now = millis();
     while (millis()-now < 5000) {
         if (mqttClient.connected())
             mqttClient.loop();

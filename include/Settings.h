@@ -10,9 +10,6 @@
 #define SETTINGS_MQTT_URL           "mqttUrl"
 #define SETTINGS_MQTT_PORT          "mqttPort"
 #define SETTINGS_DEBUG_SERIAL       "debugSerial"
-#define SETTINGS_DEBUG_TCP          "debugTcp"
-#define SETTINGS_TCP_URL            "tcpUrl"
-#define SETTINGS_TCP_PORT           "tcpPort"
 #define SETTINGS_NTP_SERVER         "ntpServer"
 #define SETTINGS_GMT_OFFSET         "gmtOffsetHours"
 #define SETTINGS_DAYLIGHT_OFFSET    "daylightOffsetHours"
@@ -27,9 +24,6 @@ public:
     String mqttUrl;
     uint16_t mqttPort;
     bool debugSerial;
-    bool debugTcp;
-    String tcpUrl;
-    uint16_t tcpPort;
     String ntpServer;
     int gmtOffsetHours;
     int daylightOffsetHours;

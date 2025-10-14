@@ -39,10 +39,6 @@ static const char* LWT_TOPIC = "tele/heating/LWT";
 static const char* ENERGY_METER_TOPIC = "tele/energy_meter";
 static const char* ERROR_TOPIC = "error/heating";
 
-//TCP for debug output
-static const char* TCP_URL = "192.168.1.3";
-static const uint16_t TCP_PORT = 8085;
-
 //JSON
 #define JSON_DOCUMENT_SIZE 896
 #define JSON_DOCUMENT_SIZE_SMALL 128
@@ -79,5 +75,9 @@ static const int DAYLIGHT_OFFSET_HOURS = 0;  // Default: no daylight saving (usu
 //Reboot History
 #define REBOOT_LOG_FILE "/reboot.log"
 #define MAX_REBOOT_HISTORY_ENTRIES 50
+
+//Debug System
+#define DEBUG_BUFFER_SIZE 4096  // 4KB circular buffer
+#define DEBUG_PAGE_UPDATE_INTERVAL 1000  // milliseconds - JavaScript polling interval
 
 #endif /* CONFIG_H_ */

@@ -1,0 +1,146 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <meta http-equiv=Content-Type content=text/html; charset=UTF-8>
+    <link rel="stylesheet" href="/default.css">
+    <title>HeatingController32 Debug</title>
+</head>
+<body>
+    <script src="/jquery-3.6.1.min.js"></script>
+    <script>
+        var ws;
+        var reconnectInterval;
+        var autoScroll = true;
+        
+        function connectWebSocket() {
+            ws = new WebSocket('ws://' + window.location.host + '/ws/debug');
+            
+            ws.onopen = function() {
+                console.log('WebSocket connected');
+                clearInterval(reconnectInterval);
+            };
+            
+            ws.onmessage = function(event) {
+                // Handle two types of messages:
+                // 1. JSON with watermarks: {"taskSystemStack":..., "taskMainStack":...}
+                // 2. Plain text debug output
+                try {
+                    var data = JSON.parse(event.data);
+                    if (data.taskSystemStack !== undefined) {
+                        updateWatermarks(data);
+                    }
+                } catch(e) {
+                    // Plain text debug message
+                    appendDebugOutput(event.data);
+                }
+            };
+            
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+            
+            ws.onclose = function() {
+                console.log('WebSocket closed, reconnecting in 2 seconds...');
+                reconnectInterval = setInterval(connectWebSocket, 2000);
+            };
+        }
+        
+        function appendDebugOutput(text) {
+            var output = $('#debugOutput');
+            output.append(text);
+            if (autoScroll) {
+                output.scrollTop(output[0].scrollHeight);
+            }
+        }
+        
+        function updateWatermarks(data) {
+            $('#taskSystemStack').text(data.taskSystemStack);
+            $('#taskMainStack').text(data.taskMainStack);
+            
+            // Color coding for taskSystem
+            if (data.taskSystemStack < 512) {
+                $('#taskSystemStack').removeClass('warning').addClass('critical');
+            } else if (data.taskSystemStack < 1024) {
+                $('#taskSystemStack').removeClass('critical').addClass('warning');
+            } else {
+                $('#taskSystemStack').removeClass('warning critical');
+            }
+            
+            // Color coding for taskMain
+            if (data.taskMainStack < 512) {
+                $('#taskMainStack').removeClass('warning').addClass('critical');
+            } else if (data.taskMainStack < 1024) {
+                $('#taskMainStack').removeClass('critical').addClass('warning');
+            } else {
+                $('#taskMainStack').removeClass('warning critical');
+            }
+        }
+        
+        $(document).ready(function() {
+            connectWebSocket();
+            
+            $('#clearBtn').click(function() {
+                $('#debugOutput').text('');
+            });
+            
+            $('#autoScrollBtn').click(function() {
+                autoScroll = !autoScroll;
+                if (autoScroll) {
+                    $(this).text('Auto-scroll: ON');
+                    $(this).css('background-color', '#4CAF50');
+                } else {
+                    $(this).text('Auto-scroll: OFF');
+                    $(this).css('background-color', '#666');
+                }
+            });
+        });
+    </script>
+    <div class="content">
+        <div style="color:#eaeaea;">
+            <h3>Debug Information</h3>
+        </div>
+        
+        <div style="color:#eaeaea;">
+            <div class="debug-field">
+                <label>Total Reboots:</label>
+                <span>%TOTAL_REBOOTS%</span>
+            </div>
+            
+            <div class="debug-field">
+                <label>Last Reboot Time:</label>
+                <span>%LAST_REBOOT_TIME%</span>
+            </div>
+            
+            <div class="debug-field">
+                <label>Last Reboot Reason:</label>
+                <span>%LAST_REBOOT_REASON%</span>
+            </div>
+            
+            <div class="debug-field">
+                <label>taskSystem Stack Free:</label>
+                <span id="taskSystemStack">-</span> bytes
+            </div>
+            
+            <div class="debug-field">
+                <label>taskMain Stack Free:</label>
+                <span id="taskMainStack">-</span> bytes
+            </div>
+            
+            <div style="margin: 20px 0; display: flex; gap: 10px; justify-content: center;">
+                <button id="autoScrollBtn" class="bgrn" style="flex: 1; max-width: 200px;">Auto-scroll: ON</button>
+                <button id="clearBtn" class="bgrn" style="flex: 1; max-width: 200px;">Clear Display</button>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <label style="font-weight: bold;">Debug Output:</label>
+                <div id="debugOutput"></div>
+            </div>
+        </div>
+        
+        <div class="spacer"></div>
+        <p class="item-main"><a href="/">Main</a></p>
+    </div>
+    <p class="build-no">Build: %BUILD_NO%</p>
+</body>
+</html>
+
