@@ -284,3 +284,13 @@ a {
 .critical {
     color: #f44336;
 }
+
+.power-label {
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.power-value {
+    font-weight: bold;
+    color: #4CAF50;
+}

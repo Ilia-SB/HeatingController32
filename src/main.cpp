@@ -233,6 +233,10 @@ static unsigned long wsLastSendTime = 0;
 volatile UBaseType_t taskSystemStackWatermark = 0;
 volatile UBaseType_t taskMainStackWatermark = 0;
 
+// Available power tracking for debug display
+volatile int16_t availablePowerPhases[NUMBER_OF_PHASES] = {0, 0, 0};
+volatile bool usingMeasuredPower[NUMBER_OF_PHASES] = {false, false, false};
+
 // Flush WebSocket send buffer
 void flushWebSocketBuffer() {
     if (wsSendBuffer.length() > 0 && wsDebugClient != NULL && wsDebugClient->canSend()) {
@@ -553,7 +557,6 @@ void getConsumptionData(const char* rawData) {
         strncat(key, &idx, 1);
         //debugPrint(key); debugPrint(" ");
         if (doc.containsKey(key)) {
-            debugPrintln("Received consumption data");
             flagConsumptionDataReceived = true;
             currentConsumption[phase] = (uint16_t)(doc[key].as<float>() * 1000);
             consumptionDataReceived[phase] = millis();
@@ -1641,16 +1644,21 @@ void processHeaters() {
         if (millis() - consumptionDataReceived[phase] < 5000) { //if data from the energy meter is not older than 5 sec.
             debugPrint(". Using measured power consumption. ");
             availablePower = settings.consumptionLimit[phase] - currentConsumption[phase];
+            usingMeasuredPower[phase] = true;
             debugPrint("Available power: ");debugPrint(availablePower);debugPrint(" = ");debugPrint(settings.consumptionLimit[phase]);debugPrint(" - ");debugPrint(currentConsumption[phase]);
         } else {
             debugPrint(". Using estimated power consumption (");debugPrint(millis() - consumptionDataReceived[phase]);debugPrint("ms since last power reading). ");
             availablePower = settings.consumptionLimit[phase] - calculateHeatersConsumption(phase);
             usingEstimatedConsumption = true;
+            usingMeasuredPower[phase] = false;
             debugPrint("Available power: ");debugPrint(availablePower);debugPrint(" = ");debugPrint(settings.consumptionLimit[phase]);debugPrint(" - ");debugPrint(calculateHeatersConsumption(phase));
             if (availablePower < 0) {
                 flagEmergency[phase] = true;
             }
         }
+        
+        // Store available power for debug display
+        availablePowerPhases[phase] = availablePower;
 
         HeaterItem* manualHeaters[NUMBER_OF_HEATERS];
         uint8_t manualHeatersNum = 0;
@@ -1828,10 +1836,18 @@ void taskSystem(void* pvParameters) {
         }
         taskSystemStackWatermark = uxTaskGetStackHighWaterMark(NULL);
         
-        // Push watermarks to WebSocket client if connected
+        // Push watermarks and available power to WebSocket client if connected
         if (wsDebugStreaming && wsDebugClient != NULL && wsDebugClient->canSend()) {
             String json = "{\"taskSystemStack\":" + String(taskSystemStackWatermark) + 
-                         ",\"taskMainStack\":" + String(taskMainStackWatermark) + "}";
+                         ",\"taskMainStack\":" + String(taskMainStackWatermark) +
+                         ",\"availablePower\":[" + 
+                         String(availablePowerPhases[0]) + "," + 
+                         String(availablePowerPhases[1]) + "," + 
+                         String(availablePowerPhases[2]) + "]" +
+                         ",\"usingMeasured\":[" + 
+                         String(usingMeasuredPower[0] ? "true" : "false") + "," + 
+                         String(usingMeasuredPower[1] ? "true" : "false") + "," + 
+                         String(usingMeasuredPower[2] ? "true" : "false") + "]}";
             wsDebugClient->text(json);
         }
         
@@ -2138,6 +2154,14 @@ void setup()
         String response = "{";
         response += "\"taskSystemStack\":" + String(taskSystemStackWatermark) + ",";
         response += "\"taskMainStack\":" + String(taskMainStackWatermark) + ",";
+        response += "\"availablePower\":[" + 
+                   String(availablePowerPhases[0]) + "," + 
+                   String(availablePowerPhases[1]) + "," + 
+                   String(availablePowerPhases[2]) + "],";
+        response += "\"usingMeasured\":[" + 
+                   String(usingMeasuredPower[0] ? "true" : "false") + "," + 
+                   String(usingMeasuredPower[1] ? "true" : "false") + "," + 
+                   String(usingMeasuredPower[2] ? "true" : "false") + "],";
         
         // Read debug buffer using head/tail circular buffer logic
         String debugOutput = "";

@@ -74,6 +74,21 @@
             } else {
                 $('#taskMainStack').removeClass('warning critical');
             }
+            
+            // Update available power if provided
+            if (data.availablePower !== undefined) {
+                for (var i = 0; i < 3; i++) {
+                    var phaseId = '#phase' + (i + 1) + 'Power';
+                    $(phaseId).text(data.availablePower[i]);
+                    
+                    // Color code based on measurement source
+                    if (data.usingMeasured[i]) {
+                        $(phaseId).css('color', '#4CAF50');  // Green for measured
+                    } else {
+                        $(phaseId).css('color', '#888');     // Gray for estimated
+                    }
+                }
+            }
         }
         
         $(document).ready(function() {
@@ -124,6 +139,15 @@
             <div class="debug-field">
                 <label>taskMain Stack Free:</label>
                 <span id="taskMainStack">-</span> bytes
+            </div>
+            
+            <div class="debug-field">
+                <label>Available Power:</label>
+                <div style="display: flex; gap: 15px; justify-content: center;">
+                    <span class="power-label">Phase 1: <span id="phase1Power" class="power-value">-</span> W</span>
+                    <span class="power-label">Phase 2: <span id="phase2Power" class="power-value">-</span> W</span>
+                    <span class="power-label">Phase 3: <span id="phase3Power" class="power-value">-</span> W</span>
+                </div>
             </div>
             
             <div style="margin: 20px 0; display: flex; gap: 10px; justify-content: center;">
