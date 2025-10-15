@@ -26,11 +26,23 @@
 
 TaskHandle_t hndlSystem;
 TaskHandle_t hndlMain;
+TaskHandle_t hndlMqttPublish;
 
 SemaphoreHandle_t mutex = NULL;
 
+// MQTT Publish Queue
+struct MqttPublishMessage {
+    char topic[128];
+    char payload[1024];
+    bool retain;
+};
+
+QueueHandle_t mqttPublishQueue = NULL;
+#define MQTT_PUBLISH_QUEUE_SIZE 20
+
 void taskSystem(void* pvParameters);
 void taskMain(void* pvParameters);
+void taskMqttPublish(void* pvParameters);
 
 WiFiClient ethClient;
 static bool ethConnected = false;
@@ -111,6 +123,7 @@ void updateOutputs(uint16_t);
 void setPorts(boolean[]);
 void processCommand(char*, char*, char*);
 void mqttCallback(char*, byte*, const unsigned int);
+bool queueMqttPublish(const char* topic, const char* payload, bool retain);
 void subscribeToExternalSensors(void);
 bool mqttConnect(void);
 void WiFiEvent(WiFiEvent_t);
@@ -208,6 +221,31 @@ void heaterItemNotificationCallback(HeaterItem& heater) {
     reportHeaterState(heater);
 }
 
+// MQTT Publish Queue Helper Function
+bool queueMqttPublish(const char* topic, const char* payload, bool retain) {
+    if (mqttPublishQueue == NULL) {
+        return false;
+    }
+    
+    MqttPublishMessage msg;
+    strncpy(msg.topic, topic, sizeof(msg.topic) - 1);
+    msg.topic[sizeof(msg.topic) - 1] = '\0';
+    
+    strncpy(msg.payload, payload, sizeof(msg.payload) - 1);
+    msg.payload[sizeof(msg.payload) - 1] = '\0';
+    
+    msg.retain = retain;
+    
+    BaseType_t result = xQueueSend(mqttPublishQueue, &msg, 0); // Non-blocking
+    if (result != pdTRUE) {
+        debugPrint("MQTT publish queue full, dropping message for topic: ");
+        debugPrintln(topic);
+        return false;
+    }
+    
+    return true;
+}
+
 // Circular debug buffer with head/tail pointers
 char debugBuffer[DEBUG_BUFFER_SIZE];
 volatile uint16_t debugBufferHead = 0;  // Read position (oldest data)
@@ -230,6 +268,7 @@ static unsigned long wsLastSendTime = 0;
 // Stack watermarks for tasks
 volatile UBaseType_t taskSystemStackWatermark = 0;
 volatile UBaseType_t taskMainStackWatermark = 0;
+volatile UBaseType_t taskMqttPublishStackWatermark = 0;
 
 // Available power tracking for debug display
 volatile int16_t availablePowerPhases[NUMBER_OF_PHASES] = {0, 0, 0};
@@ -513,7 +552,8 @@ void onDebugWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                 
                 // Send current watermarks
                 String json = "{\"taskSystemStack\":" + String(taskSystemStackWatermark) + 
-                             ",\"taskMainStack\":" + String(taskMainStackWatermark) + "}";
+                             ",\"taskMainStack\":" + String(taskMainStackWatermark) +
+                             ",\"taskMqttPublishStack\":" + String(taskMqttPublishStackWatermark) + "}";
                 client->text(json);
                 
                 // Enable streaming
@@ -603,7 +643,7 @@ void processCommand(char* item, char* command, char* payload) {
             if (settings.setHysteresis(payload)) {
                 settings.getHysteresisCStr(val);
                 strcat(statusTopic, HYSTERESIS);
-                mqttClient.publish(statusTopic, val, false);
+                queueMqttPublish(statusTopic, val, false);
                 saveSettings(settings);
             }
         }
@@ -619,7 +659,7 @@ void processCommand(char* item, char* command, char* payload) {
                 if (settings.setConsumptionLimit(payload, phase)) {
                     settings.getConsumptionLimitCStr(val, phase);
                     strcat(statusTopic, CONSUMPTION_LIMIT);
-                    mqttClient.publish(statusTopic, val, false);
+                    queueMqttPublish(statusTopic, val, false);
                     saveSettings(settings);
                 }
             }
@@ -800,7 +840,7 @@ bool mqttConnect() {
         if (heatersInitialized) {
             subscribeToExternalSensors();
         }
-        mqttClient.publish(LWT_TOPIC, "Online", true);
+        queueMqttPublish(LWT_TOPIC, "Online", true);
         ISR_Timer.disable(TIMER_NUM_MQTT_LED_BLINK);
         mqttLed(HIGH);
         if (heatersInitialized)
@@ -1166,7 +1206,7 @@ void readTemperatures() {
                     mqttTopic += heaterItems[i].getSubtopic();
                     mqttTopic += "/STATE";
 
-                    mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), false);
+                    queueMqttPublish(mqttTopic.c_str(), mqttPayload.c_str(), false);
                     debugPrint("Heater ");debugPrint(heaterItems[i].getName());debugPrint(": number of temperature read errors since last report: ");debugPrintln(heaterItems[i].getTempReadErrors());
                     heaterItems[i].setTempReadErrors(0); //reset counter
                 }
@@ -1566,17 +1606,7 @@ void reportHeaterState(HeaterItem& heater) {
     String mqttPayload;
     serializeJson(doc, mqttPayload);
 
-    uint16_t maxPayloadSize = MQTT_MAX_PACKET_SIZE - MQTT_MAX_HEADER_SIZE - 2 - mqttTopic.length();
-    if(mqttPayload.length() > maxPayloadSize) {
-        mqttClient.beginPublish(mqttTopic.c_str(), mqttPayload.length(), true);
-        for (uint16_t j=0; j<mqttPayload.length(); j++) {
-            mqttClient.write((uint8_t)(mqttPayload.c_str()[j]));
-        }
-        mqttClient.endPublish();
-    }
-    else {
-        mqttClient.publish(mqttTopic.c_str(), mqttPayload.c_str(), true);
-    }
+    queueMqttPublish(mqttTopic.c_str(), mqttPayload.c_str(), true);
 }
 
 void initHeaters() {
@@ -1854,6 +1884,7 @@ void taskSystem(void* pvParameters) {
         if (wsDebugStreaming && wsDebugClient != NULL && wsDebugClient->canSend()) {
             String json = "{\"taskSystemStack\":" + String(taskSystemStackWatermark) + 
                          ",\"taskMainStack\":" + String(taskMainStackWatermark) +
+                         ",\"taskMqttPublishStack\":" + String(taskMqttPublishStackWatermark) +
                          ",\"availablePower\":[" + 
                          String(availablePowerPhases[0]) + "," + 
                          String(availablePowerPhases[1]) + "," + 
@@ -1883,6 +1914,43 @@ void taskMain(void* pvParameters) {
         }
         taskMainStackWatermark = uxTaskGetStackHighWaterMark(NULL);
         vTaskDelay(TEMPERATURE_READ_INTERVAL / portTICK_PERIOD_MS);
+    }
+}
+
+void taskMqttPublish(void* pvParameters) {
+    MqttPublishMessage msg;
+    
+    while(true) {
+        // Wait for messages from the queue
+        if (xQueueReceive(mqttPublishQueue, &msg, portMAX_DELAY) == pdTRUE) {
+            // Check if MQTT is connected before publishing
+            if (mqttClient.connected()) {
+                // Check payload size to determine publish method
+                uint16_t maxPayloadSize = MQTT_MAX_PACKET_SIZE - MQTT_MAX_HEADER_SIZE - 2 - strlen(msg.topic);
+                
+                if (strlen(msg.payload) > maxPayloadSize) {
+                    // Large payload - use beginPublish/endPublish pattern
+                    if (mqttClient.beginPublish(msg.topic, strlen(msg.payload), msg.retain)) {
+                        for (uint16_t i = 0; i < strlen(msg.payload); i++) {
+                            mqttClient.write((uint8_t)msg.payload[i]);
+                        }
+                        mqttClient.endPublish();
+                    }
+                } else {
+                    // Small payload - use simple publish
+                    mqttClient.publish(msg.topic, msg.payload, msg.retain);
+                }
+            } else {
+                debugPrint("MQTT not connected, dropping message for topic: ");
+                debugPrintln(msg.topic);
+            }
+        }
+        
+        // Update stack watermark
+        taskMqttPublishStackWatermark = uxTaskGetStackHighWaterMark(NULL);
+        
+        // Add delay to prevent publishing messages too fast
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 
@@ -2171,6 +2239,7 @@ void setup()
         String response = "{";
         response += "\"taskSystemStack\":" + String(taskSystemStackWatermark) + ",";
         response += "\"taskMainStack\":" + String(taskMainStackWatermark) + ",";
+        response += "\"taskMqttPublishStack\":" + String(taskMqttPublishStackWatermark) + ",";
         response += "\"availablePower\":[" + 
                    String(availablePowerPhases[0]) + "," + 
                    String(availablePowerPhases[1]) + "," + 
@@ -2317,10 +2386,14 @@ void setup()
 
     debugPrintln("Starting tasks...");
     mutex = xSemaphoreCreateMutex();
+    
+    // Create MQTT publish queue
+    mqttPublishQueue = xQueueCreate(MQTT_PUBLISH_QUEUE_SIZE, sizeof(MqttPublishMessage));
 
     //stack size calculation based on empirical data
     xTaskCreate(taskSystem, "System", 12288, NULL, 1, &hndlSystem);  // Increased for external sensor MQTT handling
     xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
+    xTaskCreate(taskMqttPublish, "MqttPublish", 4096, NULL, 1, &hndlMqttPublish);
 }
 
 void loop() {

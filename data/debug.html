@@ -56,6 +56,7 @@
         function updateWatermarks(data) {
             $('#taskSystemStack').text(data.taskSystemStack);
             $('#taskMainStack').text(data.taskMainStack);
+            $('#taskMqttPublishStack').text(data.taskMqttPublishStack);
             
             // Color coding for taskSystem
             if (data.taskSystemStack < 512) {
@@ -73,6 +74,15 @@
                 $('#taskMainStack').removeClass('critical').addClass('warning');
             } else {
                 $('#taskMainStack').removeClass('warning critical');
+            }
+            
+            // Color coding for taskMqttPublish
+            if (data.taskMqttPublishStack < 512) {
+                $('#taskMqttPublishStack').removeClass('warning').addClass('critical');
+            } else if (data.taskMqttPublishStack < 1024) {
+                $('#taskMqttPublishStack').removeClass('critical').addClass('warning');
+            } else {
+                $('#taskMqttPublishStack').removeClass('warning critical');
             }
             
             // Update available power if provided
@@ -139,6 +149,11 @@
             <div class="debug-field">
                 <label>taskMain Stack Free:</label>
                 <span id="taskMainStack">-</span> bytes
+            </div>
+            
+            <div class="debug-field">
+                <label>taskMqttPublish Stack Free:</label>
+                <span id="taskMqttPublishStack">-</span> bytes
             </div>
             
             <div class="debug-field">
