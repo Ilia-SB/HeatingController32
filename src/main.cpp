@@ -295,6 +295,12 @@ String buildDebugWebSocketJson() {
                  ",\"totalReboots\":" + String(cachedTotalReboots) +
                  ",\"lastRebootTime\":\"" + String(cachedLastRebootTime) + "\"" +
                  ",\"lastRebootReason\":\"" + String(cachedLastRebootReason) + "\"}";
+    
+    // Remove invalid characters (newlines, carriage returns, etc.)
+    json.replace("\n", " ");
+    json.replace("\r", " ");
+    json.replace("\t", " ");
+    
     return json;
 }
 

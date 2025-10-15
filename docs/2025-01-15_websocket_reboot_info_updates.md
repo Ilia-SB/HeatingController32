@@ -119,6 +119,32 @@ Created a centralized `buildDebugWebSocketJson()` function that generates the co
 - **Maintainability**: Single source of truth for WebSocket JSON generation
 - **DRY Principle**: Eliminated code duplication
 
+## JSON Sanitization Fix
+
+**Date:** 2025-01-15 (Updated)  
+**Type:** Bug Fix
+
+### Problem Identified
+The `lastRebootReason` field contained trailing newline characters from the reboot log file parsing, causing the generated JSON to be invalid. This made the JavaScript JSON parser fail and fall back to displaying the JSON as plain text in debug output.
+
+### Solution Implemented
+Added JSON sanitization in `buildDebugWebSocketJson()` to remove newline characters (`\n`, `\r`) and tabs (`\t`) that break JSON string format.
+
+### Changes Made
+**Updated `buildDebugWebSocketJson()` function** (lines 299-302):
+```cpp
+// Remove invalid characters (newlines, carriage returns, etc.)
+json.replace("\n", " ");
+json.replace("\r", " ");
+json.replace("\t", " ");
+```
+
+### Benefits
+- **JSON Validity**: Ensures all generated JSON is valid and parseable
+- **Robust**: Catches invalid characters from any source, not just reboot fields
+- **Maintainable**: Single sanitization point for all WebSocket JSON
+- **User-Friendly**: Replaces newlines with spaces to preserve readability
+
 ## Build Status
 
 - ✅ Compilation successful

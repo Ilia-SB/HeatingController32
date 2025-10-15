@@ -40,8 +40,8 @@
             };
             
             ws.onclose = function() {
-                console.log('WebSocket closed, reconnecting in 2 seconds...');
-                reconnectInterval = setInterval(connectWebSocket, 2000);
+                console.log('WebSocket closed, reconnecting in 0.5 seconds...');
+                reconnectInterval = setInterval(connectWebSocket, 500);
             };
         }
         
