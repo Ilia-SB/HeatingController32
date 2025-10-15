@@ -274,6 +274,11 @@ volatile UBaseType_t taskMqttPublishStackWatermark = 0;
 volatile int16_t availablePowerPhases[NUMBER_OF_PHASES] = {0, 0, 0};
 volatile bool usingMeasuredPower[NUMBER_OF_PHASES] = {false, false, false};
 
+// Cached reboot information for WebSocket updates
+volatile uint32_t cachedTotalReboots = 0;
+String cachedLastRebootTime = "No time available";
+String cachedLastRebootReason = "Unknown";
+
 // Flush WebSocket send buffer
 void flushWebSocketBuffer() {
     if (wsSendBufferPos > 0 && wsDebugClient != NULL && wsDebugClient->canSend()) {
@@ -550,10 +555,13 @@ void onDebugWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                     xSemaphoreGive(debugBufferMutex);
                 }
                 
-                // Send current watermarks
+                // Send current watermarks and reboot info
                 String json = "{\"taskSystemStack\":" + String(taskSystemStackWatermark) + 
                              ",\"taskMainStack\":" + String(taskMainStackWatermark) +
-                             ",\"taskMqttPublishStack\":" + String(taskMqttPublishStackWatermark) + "}";
+                             ",\"taskMqttPublishStack\":" + String(taskMqttPublishStackWatermark) +
+                             ",\"totalReboots\":" + String(cachedTotalReboots) +
+                             ",\"lastRebootTime\":\"" + String(cachedLastRebootTime) + "\"" +
+                             ",\"lastRebootReason\":\"" + String(cachedLastRebootReason) + "\"}";
                 client->text(json);
                 
                 // Enable streaming
@@ -1892,7 +1900,10 @@ void taskSystem(void* pvParameters) {
                          ",\"usingMeasured\":[" + 
                          String(usingMeasuredPower[0] ? "true" : "false") + "," + 
                          String(usingMeasuredPower[1] ? "true" : "false") + "," + 
-                         String(usingMeasuredPower[2] ? "true" : "false") + "]}";
+                         String(usingMeasuredPower[2] ? "true" : "false") + "]" +
+                         ",\"totalReboots\":" + String(cachedTotalReboots) +
+                         ",\"lastRebootTime\":\"" + String(cachedLastRebootTime) + "\"" +
+                         ",\"lastRebootReason\":\"" + String(cachedLastRebootReason) + "\"}";
             wsDebugClient->text(json);
         }
         
@@ -2015,6 +2026,40 @@ void appendRebootEntry(const String& timestamp, uint32_t bootNum, const char* re
     file.println(entry);
     file.close();
     debugPrint("Reboot entry added: "); debugPrintln(entry);
+}
+
+void cacheRebootInfo() {
+    // Cache total reboots
+    cachedTotalReboots = getNextBootNumber() - 1;
+    
+    // Cache last reboot time and reason
+    if (LittleFS.exists(REBOOT_LOG_FILE)) {
+        File file = LittleFS.open(REBOOT_LOG_FILE, FILE_READ);
+        if (file) {
+            String lastLine = "";
+            while (file.available()) {
+                String line = file.readStringUntil('\n');
+                if (line.length() > 0) {
+                    lastLine = line;
+                }
+            }
+            file.close();
+            
+            if (lastLine.length() > 0) {
+                // Parse timestamp from format "N. [timestamp] reason"
+                int firstBracket = lastLine.indexOf('[');
+                int secondBracket = lastLine.indexOf(']');
+                if (firstBracket > 0 && secondBracket > firstBracket) {
+                    cachedLastRebootTime = lastLine.substring(firstBracket + 1, secondBracket);
+                }
+                
+                // Parse reason from format "N. [timestamp] reason"
+                if (secondBracket > 0 && secondBracket + 2 < lastLine.length()) {
+                    cachedLastRebootReason = lastLine.substring(secondBracket + 2);
+                }
+            }
+        }
+    }
 }
 
 void trimRebootHistory() {
@@ -2162,6 +2207,9 @@ void setup()
     
     // Manage reboot history
     manageRebootHistory(bootNumber, resetReason);
+    
+    // Cache reboot information for WebSocket updates
+    cacheRebootInfo();
     
     debugPrintln();
 

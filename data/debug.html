@@ -58,6 +58,17 @@
             $('#taskMainStack').text(data.taskMainStack);
             $('#taskMqttPublishStack').text(data.taskMqttPublishStack);
             
+            // Update reboot information if provided
+            if (data.totalReboots !== undefined) {
+                $('#totalReboots').text(data.totalReboots);
+            }
+            if (data.lastRebootTime !== undefined) {
+                $('#lastRebootTime').text(data.lastRebootTime);
+            }
+            if (data.lastRebootReason !== undefined) {
+                $('#lastRebootReason').text(data.lastRebootReason);
+            }
+            
             // Color coding for taskSystem
             if (data.taskSystemStack < 512) {
                 $('#taskSystemStack').removeClass('warning').addClass('critical');
@@ -128,17 +139,17 @@
         <div style="color:#eaeaea;">
             <div class="debug-field">
                 <label>Total Reboots:</label>
-                <span>%TOTAL_REBOOTS%</span>
+                <span id="totalReboots">%TOTAL_REBOOTS%</span>
             </div>
             
             <div class="debug-field">
                 <label>Last Reboot Time:</label>
-                <span>%LAST_REBOOT_TIME%</span>
+                <span id="lastRebootTime">%LAST_REBOOT_TIME%</span>
             </div>
             
             <div class="debug-field">
                 <label>Last Reboot Reason:</label>
-                <span>%LAST_REBOOT_REASON%</span>
+                <span id="lastRebootReason">%LAST_REBOOT_REASON%</span>
             </div>
             
             <div class="debug-field">
