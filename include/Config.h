@@ -79,5 +79,6 @@ static const int DAYLIGHT_OFFSET_HOURS = 0;  // Default: no daylight saving (usu
 //Debug System
 #define DEBUG_BUFFER_SIZE 4096  // 4KB circular buffer
 #define DEBUG_PAGE_UPDATE_INTERVAL 1000  // milliseconds - JavaScript polling interval
+#define CONSUMPTION_DATA_TIMEOUT 5000    // milliseconds - energy meter data timeout
 
 #endif /* CONFIG_H_ */

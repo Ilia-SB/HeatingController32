@@ -112,7 +112,6 @@ void setPorts(boolean[]);
 void processCommand(char*, char*, char*);
 void mqttCallback(char*, byte*, const unsigned int);
 void subscribeToExternalSensors(void);
-bool tcpConnect(void);
 bool mqttConnect(void);
 void WiFiEvent(WiFiEvent_t);
 String webServerPlaceholderProcessor(const String&);
@@ -1641,7 +1640,7 @@ void processHeaters() {
         debugPrint("Phase "); debugPrint(phase + 1);
         int16_t availablePower = 0;
         bool usingEstimatedConsumption = false;
-        if (millis() - consumptionDataReceived[phase] < 5000) { //if data from the energy meter is not older than 5 sec.
+        if (millis() - consumptionDataReceived[phase] < CONSUMPTION_DATA_TIMEOUT) { //if data from the energy meter is not older than 5 sec.
             debugPrint(". Using measured power consumption. ");
             availablePower = settings.consumptionLimit[phase] - currentConsumption[phase];
             usingMeasuredPower[phase] = true;
@@ -2290,7 +2289,7 @@ void setup()
 
     //wait 5 seconds to get energy meter data from mqtt
     auto now = millis();
-    while (millis()-now < 5000) {
+    while (millis()-now < CONSUMPTION_DATA_TIMEOUT) {
         if (mqttClient.connected())
             mqttClient.loop();
         yield();
