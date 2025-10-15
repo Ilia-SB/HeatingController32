@@ -219,11 +219,10 @@ AsyncWebSocket wsDebug("/ws/debug");
 AsyncWebSocketClient* wsDebugClient = NULL;  // Single client tracking
 volatile bool wsDebugStreaming = false;      // true = direct push, false = buffer
 
-// Global buffer for number to string conversions - prevents stack buffer issues with async WebSocket
-static char globalNumBuffer[32];
 
 // WebSocket send buffer - batch messages to avoid overwhelming the send queue
-static String wsSendBuffer;
+static char wsSendBuffer[WS_SEND_BATCH_SIZE];
+static size_t wsSendBufferPos = 0;
 static unsigned long wsLastSendTime = 0;
 #define WS_SEND_BATCH_SIZE 512       // Send when buffer reaches this size
 #define WS_SEND_BATCH_INTERVAL 50    // Or send every 50ms
@@ -238,9 +237,10 @@ volatile bool usingMeasuredPower[NUMBER_OF_PHASES] = {false, false, false};
 
 // Flush WebSocket send buffer
 void flushWebSocketBuffer() {
-    if (wsSendBuffer.length() > 0 && wsDebugClient != NULL && wsDebugClient->canSend()) {
+    if (wsSendBufferPos > 0 && wsDebugClient != NULL && wsDebugClient->canSend()) {
+        wsSendBuffer[wsSendBufferPos] = '\0'; // Null terminate
         wsDebugClient->text(wsSendBuffer);
-        wsSendBuffer = "";
+        wsSendBufferPos = 0; // Reset position
         wsLastSendTime = millis();
     }
 }
@@ -255,15 +255,15 @@ void writeToDebugBuffer(const char* msg, size_t len) {
         if (wsDebugStreaming && wsDebugClient != NULL) {
             // Batch messages to avoid overwhelming WebSocket send queue
             // Append to send buffer
-            for (size_t i = 0; i < len; i++) {
-                wsSendBuffer += msg[i];
+            for (size_t i = 0; i < len && wsSendBufferPos < WS_SEND_BATCH_SIZE - 1; i++) {
+                wsSendBuffer[wsSendBufferPos++] = msg[i];
             }
             
             // Check if we need to flush
             bool shouldFlush = false;
             
             // Flush if buffer is getting large
-            if (wsSendBuffer.length() >= WS_SEND_BATCH_SIZE) {
+            if (wsSendBufferPos >= WS_SEND_BATCH_SIZE - 1) {
                 shouldFlush = true;
             }
             // Flush if we see a newline (end of log line)
@@ -310,43 +310,48 @@ void debugPrint(const char* msg) {
 }
 
 void debugPrint(int val) {
-    itoa(val, globalNumBuffer, 10);
+    char buffer[16];
+    itoa(val, buffer, 10);
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer(buffer, strlen(buffer));
 }
 
 void debugPrint(unsigned int val) {
-    utoa(val, globalNumBuffer, 10);
+    char buffer[16];
+    utoa(val, buffer, 10);
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer(buffer, strlen(buffer));
 }
 
 void debugPrint(long val) {
-    ltoa(val, globalNumBuffer, 10);
+    char buffer[16];
+    ltoa(val, buffer, 10);
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer(buffer, strlen(buffer));
 }
 
 void debugPrint(unsigned long val) {
-    ultoa(val, globalNumBuffer, 10);
+    char buffer[16];
+    ultoa(val, buffer, 10);
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer(buffer, strlen(buffer));
 }
 
 void debugPrint(float val) {
-    dtostrf(val, 0, 2, globalNumBuffer);
+    char buffer[16];
+    dtostrf(val, 0, 2, buffer);
     if (settings.debugSerial) {
         Serial.print(val);
     }
-    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer(buffer, strlen(buffer));
 }
 
 void debugPrintln() {
@@ -373,74 +378,82 @@ void debugPrintln(const char* msg) {
 }
 
 void debugPrintln(int val) {
-    itoa(val, globalNumBuffer, 10);
+    char buffer[16];
+    itoa(val, buffer, 10);
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer(buffer, strlen(buffer));
     writeToDebugBuffer("\n", 1);
 }
 
 void debugPrintln(unsigned int val) {
-    utoa(val, globalNumBuffer, 10);
+    char buffer[16];
+    utoa(val, buffer, 10);
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer(buffer, strlen(buffer));
     writeToDebugBuffer("\n", 1);
 }
 
 void debugPrintln(long val) {
-    ltoa(val, globalNumBuffer, 10);
+    char buffer[16];
+    ltoa(val, buffer, 10);
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer(buffer, strlen(buffer));
     writeToDebugBuffer("\n", 1);
 }
 
 void debugPrintln(unsigned long val) {
-    ultoa(val, globalNumBuffer, 10);
+    char buffer[16];
+    ultoa(val, buffer, 10);
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer(buffer, strlen(buffer));
     writeToDebugBuffer("\n", 1);
 }
 
 void debugPrintln(float val) {
-    dtostrf(val, 0, 2, globalNumBuffer);
+    char buffer[16];
+    dtostrf(val, 0, 2, buffer);
     if (settings.debugSerial) {
         Serial.println(val);
     }
-    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer(buffer, strlen(buffer));
     writeToDebugBuffer("\n", 1);
 }
 
 void debugPrintDec(int val) {
-    itoa(val, globalNumBuffer, 10);
+    char buffer[16];
+    itoa(val, buffer, 10);
     if (settings.debugSerial) {
         Serial.print(val, DEC);
     }
-    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer(buffer, strlen(buffer));
 }
 
 void debugPrintHex(int val) {
-    itoa(val, globalNumBuffer, 16);
+    char buffer[16];
+    itoa(val, buffer, 16);
     if (settings.debugSerial) {
         Serial.print(val, HEX);
     }
-    writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+    writeToDebugBuffer(buffer, strlen(buffer));
 }
 
 void debugPrintArray(uint8_t* arr, uint8_t len) {
     for (uint8_t i = 0; i < len; i++) {
-        itoa(arr[i], globalNumBuffer, 10);
+        char buffer[16];
+        itoa(arr[i], buffer, 10);
         if (settings.debugSerial) {
             Serial.print(arr[i]);
             Serial.print(" ");
         }
-        writeToDebugBuffer(globalNumBuffer, strlen(globalNumBuffer));
+        writeToDebugBuffer(buffer, strlen(buffer));
         writeToDebugBuffer(" ", 1);
     }
 }
@@ -471,6 +484,7 @@ void onDebugWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                 }
                 
                 wsDebugClient = client;
+                wsSendBufferPos = 0; // Clear any pending buffer
                 
                 // Push entire buffer to client
                 if (debugBufferMutex != NULL && xSemaphoreTake(debugBufferMutex, pdMS_TO_TICKS(100))) {
@@ -516,6 +530,7 @@ void onDebugWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
             if (client == wsDebugClient) {
                 wsDebugClient = NULL;
                 wsDebugStreaming = false;
+                wsSendBufferPos = 0; // Clear any pending buffer
                 debugPrintln("WebSocket streaming disabled, resuming buffering");
             }
             break;
