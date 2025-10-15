@@ -30,8 +30,15 @@ TaskHandle_t hndlMqttPublish;
 
 SemaphoreHandle_t mutex = NULL;
 
-// MQTT Publish Queue
-struct MqttPublishMessage {
+// MQTT Command Queue
+enum MqttCommandType {
+    MQTT_CMD_PUBLISH,
+    MQTT_CMD_DISCONNECT,
+    MQTT_CMD_SUBSCRIBE
+};
+
+struct MqttCommand {
+    MqttCommandType type;
     char topic[128];
     char payload[1024];
     bool retain;
@@ -227,18 +234,63 @@ bool queueMqttPublish(const char* topic, const char* payload, bool retain) {
         return false;
     }
     
-    MqttPublishMessage msg;
-    strncpy(msg.topic, topic, sizeof(msg.topic) - 1);
-    msg.topic[sizeof(msg.topic) - 1] = '\0';
+    MqttCommand cmd;
+    cmd.type = MQTT_CMD_PUBLISH;
+    strncpy(cmd.topic, topic, sizeof(cmd.topic) - 1);
+    cmd.topic[sizeof(cmd.topic) - 1] = '\0';
     
-    strncpy(msg.payload, payload, sizeof(msg.payload) - 1);
-    msg.payload[sizeof(msg.payload) - 1] = '\0';
+    strncpy(cmd.payload, payload, sizeof(cmd.payload) - 1);
+    cmd.payload[sizeof(cmd.payload) - 1] = '\0';
     
-    msg.retain = retain;
+    cmd.retain = retain;
     
-    BaseType_t result = xQueueSend(mqttPublishQueue, &msg, 0); // Non-blocking
+    BaseType_t result = xQueueSend(mqttPublishQueue, &cmd, 0); // Non-blocking
     if (result != pdTRUE) {
         debugPrint("MQTT publish queue full, dropping message for topic: ");
+        debugPrintln(topic);
+        return false;
+    }
+    
+    return true;
+}
+
+// MQTT Disconnect Helper Function
+bool queueMqttDisconnect() {
+    if (mqttPublishQueue == NULL) {
+        return false;
+    }
+    
+    MqttCommand cmd;
+    cmd.type = MQTT_CMD_DISCONNECT;
+    cmd.topic[0] = '\0';
+    cmd.payload[0] = '\0';
+    cmd.retain = false;
+    
+    BaseType_t result = xQueueSend(mqttPublishQueue, &cmd, 0); // Non-blocking
+    if (result != pdTRUE) {
+        debugPrintln("MQTT disconnect queue full, dropping disconnect command");
+        return false;
+    }
+    
+    return true;
+}
+
+// MQTT Subscribe Helper Function
+bool queueMqttSubscribe(const char* topic) {
+    if (mqttPublishQueue == NULL) {
+        return false;
+    }
+    
+    MqttCommand cmd;
+    cmd.type = MQTT_CMD_SUBSCRIBE;
+    strncpy(cmd.topic, topic, sizeof(cmd.topic) - 1);
+    cmd.topic[sizeof(cmd.topic) - 1] = '\0';
+    cmd.payload[0] = '\0';
+    cmd.retain = false;
+    
+    BaseType_t result = xQueueSend(mqttPublishQueue, &cmd, 0); // Non-blocking
+    if (result != pdTRUE) {
+        debugPrint("MQTT subscribe queue full, dropping subscription for topic: ");
         debugPrintln(topic);
         return false;
     }
@@ -614,6 +666,10 @@ void onDebugWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
             // We don't expect data from client, ignore
             break;
             
+        case WS_EVT_PING:
+            // Ping received, connection is alive
+            break;
+            
         case WS_EVT_PONG:
             // Pong received, connection is alive
             break;
@@ -752,16 +808,12 @@ void processCommand(char* item, char* command, char* payload) {
     if (strcasecmp(command, USE_EXTERNAL_SENSOR) == 0) {
         heater->setUseExternalSensor(payload);
         save = true;
-        if (mqttClient.connected()) {
-            subscribeToExternalSensors();
-        }
+        subscribeToExternalSensors();
     }
     if (strcasecmp(command, EXTERNAL_SENSOR_TOPIC) == 0) {
         heater->setExternalSensorTopic(payload);
         save = true;
-        if (mqttClient.connected()) {
-            subscribeToExternalSensors();
-        }
+        subscribeToExternalSensors();
     }
     if (strcasecmp(command, CONSUMPTION) == 0) {
         heater->setPowerConsumption(payload);
@@ -846,42 +898,13 @@ void subscribeToExternalSensors() {
     for (uint8_t i = 0; i < NUMBER_OF_HEATERS; i++) {
         if (heaterItems[i].getUseExternalSensor() && 
             strlen(heaterItems[i].getExternalSensorTopic()) > 0) {
-            mqttClient.subscribe(heaterItems[i].getExternalSensorTopic());
-            debugPrint("Subscribed to external sensor: ");
+            queueMqttSubscribe(heaterItems[i].getExternalSensorTopic());
+            debugPrint("Queued subscription to external sensor: ");
             debugPrintln(heaterItems[i].getExternalSensorTopic());
         }
     }
 }
 
-bool mqttConnect() {
-    if (!ethConnected) {
-        mqttLed(LOW);
-        return false;
-    }
-    ISR_Timer.enable(TIMER_NUM_MQTT_LED_BLINK);
-    mqttClient.setServer(settings.mqttUrl.c_str(), settings.mqttPort);
-    mqttClient.setCallback(mqttCallback);
-    if (mqttClient.connect(HOSTNAME, LWT_TOPIC, 0, true, "Offline")) {
-        debugPrintln("MQTT connected");
-        mqttClient.subscribe(COMMAND_TOPIC.c_str());
-        mqttClient.subscribe(ENERGY_METER_TOPIC);
-        if (heatersInitialized) {
-            subscribeToExternalSensors();
-        }
-        queueMqttPublish(LWT_TOPIC, "Online", true);
-        ISR_Timer.disable(TIMER_NUM_MQTT_LED_BLINK);
-        mqttLed(HIGH);
-        if (heatersInitialized)
-            reportHeatersState();
-        return true;
-    }
-    else {
-        debugPrintln("MQTT connect failed");
-        ISR_Timer.disable(TIMER_NUM_MQTT_LED_BLINK);
-        mqttLed(LOW);
-        return false;
-    }
-}
 
 void WiFiEvent(WiFiEvent_t event) {
     switch (event) {
@@ -908,7 +931,7 @@ void WiFiEvent(WiFiEvent_t event) {
         ethConnected = true;
         ISR_Timer.disable(TIMER_NUM_ETHERNET_LED_BLINK);
         ethernetLed(HIGH);
-        mqttConnect();
+        // MQTT connection will be handled automatically by taskMqttPublish
         break;
     case ARDUINO_EVENT_ETH_DISCONNECTED:
         Serial.println("ETH Disconnected");
@@ -1532,9 +1555,7 @@ void processSettingsForm(AsyncWebServerRequest* request) {
     }
 
     saveState(heaterItems[itemNo]);
-    if (mqttClient.connected()) {
-        subscribeToExternalSensors();
-    }
+    subscribeToExternalSensors();
     request->send(LittleFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     if (xSemaphoreTake(mutex, portMAX_DELAY)) {
         processHeaters();
@@ -1885,9 +1906,7 @@ void taskSystem(void* pvParameters) {
             if (flagRestartNow) {
                 debugPrintln("Restarting...");
                 // Gracefully disconnect MQTT
-                if (mqttClient.connected()) {
-                    mqttClient.disconnect();
-                }
+                queueMqttDisconnect();
                 
                 // Gracefully disconnect WebSocket debug client
                 if (wsDebugClient != NULL) {
@@ -1900,12 +1919,6 @@ void taskSystem(void* pvParameters) {
                 vTaskDelay(2000 / portTICK_PERIOD_MS);
                 
                 ESP.restart();
-            }
-            if (mqttClient.connected()) {
-                mqttClient.loop();
-            }
-            else {
-                mqttConnect();
             }
             // Process heaters immediately if MQTT command requested it
             if (flagProcessHeatersNow) {
@@ -1944,39 +1957,105 @@ void taskMain(void* pvParameters) {
 }
 
 void taskMqttPublish(void* pvParameters) {
-    MqttPublishMessage msg;
+    MqttCommand cmd;
+    unsigned long lastReconnectAttempt = 0;
+    const unsigned long RECONNECT_INTERVAL = 1000; // Try reconnect every 1s
     
     while(true) {
-        // Wait for messages from the queue
-        if (xQueueReceive(mqttPublishQueue, &msg, portMAX_DELAY) == pdTRUE) {
-            // Check if MQTT is connected before publishing
-            if (mqttClient.connected()) {
-                // Check payload size to determine publish method
-                uint16_t maxPayloadSize = MQTT_MAX_PACKET_SIZE - MQTT_MAX_HEADER_SIZE - 2 - strlen(msg.topic);
-                
-                if (strlen(msg.payload) > maxPayloadSize) {
-                    // Large payload - use beginPublish/endPublish pattern
-                    if (mqttClient.beginPublish(msg.topic, strlen(msg.payload), msg.retain)) {
-                        for (uint16_t i = 0; i < strlen(msg.payload); i++) {
-                            mqttClient.write((uint8_t)msg.payload[i]);
+        // 1. Check connection and reconnect if needed
+        if (!mqttClient.connected()) {
+            unsigned long now = millis();
+            if (now - lastReconnectAttempt > RECONNECT_INTERVAL) {
+                lastReconnectAttempt = now;
+                if (ethConnected) {
+                    // Move mqttConnect logic directly into task
+                    ISR_Timer.enable(TIMER_NUM_MQTT_LED_BLINK);
+                    mqttClient.setServer(settings.mqttUrl.c_str(), settings.mqttPort);
+                    mqttClient.setCallback(mqttCallback);
+                    if (mqttClient.connect(HOSTNAME, LWT_TOPIC, 0, true, "Offline")) {
+                        debugPrintln("MQTT connected");
+                        // Subscribe to core topics
+                        mqttClient.subscribe(COMMAND_TOPIC.c_str());
+                        mqttClient.subscribe(ENERGY_METER_TOPIC);
+                        if (heatersInitialized) {
+                            // Subscribe to external sensors directly here
+                            for (uint8_t i = 0; i < NUMBER_OF_HEATERS; i++) {
+                                if (heaterItems[i].getUseExternalSensor() && 
+                                    strlen(heaterItems[i].getExternalSensorTopic()) > 0) {
+                                    mqttClient.subscribe(heaterItems[i].getExternalSensorTopic());
+                                }
+                            }
                         }
-                        mqttClient.endPublish();
+                        // Publish LWT Online
+                        mqttClient.publish(LWT_TOPIC, "Online", true);
+                        ISR_Timer.disable(TIMER_NUM_MQTT_LED_BLINK);
+                        mqttLed(HIGH);
+                        if (heatersInitialized) {
+                            // Report all heater states after connection
+                            // (queue them to process in order)
+                            for (uint8_t i = 0; i < NUMBER_OF_HEATERS; i++) {
+                                reportHeaterState(heaterItems[i]);
+                            }
+                        }
+                    } else {
+                        debugPrintln("MQTT connect failed");
+                        ISR_Timer.disable(TIMER_NUM_MQTT_LED_BLINK);
+                        mqttLed(LOW);
                     }
-                } else {
-                    // Small payload - use simple publish
-                    mqttClient.publish(msg.topic, msg.payload, msg.retain);
                 }
-            } else {
-                debugPrint("MQTT not connected, dropping message for topic: ");
-                debugPrintln(msg.topic);
+            }
+        }
+        
+        // 2. Process MQTT loop if connected
+        if (mqttClient.connected()) {
+            mqttClient.loop();
+        }
+        
+        // 3. Process queued commands (with 100ms timeout for responsive loop)
+        if (xQueueReceive(mqttPublishQueue, &cmd, pdMS_TO_TICKS(100)) == pdTRUE) {
+            switch (cmd.type) {
+                case MQTT_CMD_PUBLISH:
+                    if (mqttClient.connected()) {
+                        // Check payload size to determine publish method
+                        uint16_t maxPayloadSize = MQTT_MAX_PACKET_SIZE - MQTT_MAX_HEADER_SIZE - 2 - strlen(cmd.topic);
+                        
+                        if (strlen(cmd.payload) > maxPayloadSize) {
+                            // Large payload - use beginPublish/endPublish pattern
+                            if (mqttClient.beginPublish(cmd.topic, strlen(cmd.payload), cmd.retain)) {
+                                for (uint16_t i = 0; i < strlen(cmd.payload); i++) {
+                                    mqttClient.write((uint8_t)cmd.payload[i]);
+                                }
+                                mqttClient.endPublish();
+                            }
+                        } else {
+                            // Small payload - use simple publish
+                            mqttClient.publish(cmd.topic, cmd.payload, cmd.retain);
+                        }
+                    } else {
+                        debugPrint("MQTT not connected, dropping message for topic: ");
+                        debugPrintln(cmd.topic);
+                    }
+                    break;
+                    
+                case MQTT_CMD_DISCONNECT:
+                    if (mqttClient.connected()) {
+                        debugPrintln("MQTT disconnecting...");
+                        mqttClient.disconnect();
+                    }
+                    break;
+                    
+                case MQTT_CMD_SUBSCRIBE:
+                    if (mqttClient.connected()) {
+                        mqttClient.subscribe(cmd.topic);
+                        debugPrint("Subscribed to topic: ");
+                        debugPrintln(cmd.topic);
+                    }
+                    break;
             }
         }
         
         // Update stack watermark
         taskMqttPublishStackWatermark = uxTaskGetStackHighWaterMark(NULL);
-        
-        // Add delay to prevent publishing messages too fast
-        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 
@@ -2435,28 +2514,18 @@ void setup()
         }
     }
 
-    mqttConnect();
-
-    //wait 5 seconds to get energy meter data from mqtt
-    auto now = millis();
-    while (millis()-now < CONSUMPTION_DATA_TIMEOUT) {
-        if (mqttClient.connected())
-            mqttClient.loop();
-        yield();
-        if (flagConsumptionDataReceived)
-            break;
-    }
+    // MQTT connection will be handled automatically by taskMqttPublish
 
     debugPrintln("Starting tasks...");
     mutex = xSemaphoreCreateMutex();
     
     // Create MQTT publish queue
-    mqttPublishQueue = xQueueCreate(MQTT_PUBLISH_QUEUE_SIZE, sizeof(MqttPublishMessage));
+    mqttPublishQueue = xQueueCreate(MQTT_PUBLISH_QUEUE_SIZE, sizeof(MqttCommand));
 
     //stack size calculation based on empirical data
     xTaskCreate(taskSystem, "System", 12288, NULL, 1, &hndlSystem);  // Increased for external sensor MQTT handling
     xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
-    xTaskCreate(taskMqttPublish, "MqttPublish", 4096, NULL, 1, &hndlMqttPublish);
+    xTaskCreate(taskMqttPublish, "MqttPublish", 8192, NULL, 2, &hndlMqttPublish);  // Higher priority (2), double stack (8KB)
 }
 
 void loop() {
