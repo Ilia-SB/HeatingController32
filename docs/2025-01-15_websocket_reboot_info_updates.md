@@ -95,7 +95,29 @@ String cachedLastRebootReason = "Unknown";
 | File | Changes | Lines |
 |------|---------|-------|
 | `data/debug.html` | Added IDs and JavaScript updates | 131, 136, 141, 56-113 |
-| `src/main.cpp` | Added caching and WebSocket updates | 277-280, 2025-2057, 2205-2206, 559-565, 1893-1907 |
+| `src/main.cpp` | Added caching, WebSocket updates, and JSON refactoring | 277-280, 282-299, 2025-2057, 2205-2206, 577-579, 1906-1909 |
+
+## Refactoring Update
+
+**Date:** 2025-01-15 (Updated)  
+**Type:** Code Refactoring
+
+### Problem Identified
+The initial WebSocket message was missing `availablePower` and `usingMeasured` fields, causing the JSON to be treated as plain text and displayed in debug output instead of being processed by `updateWatermarks()`.
+
+### Solution Implemented
+Created a centralized `buildDebugWebSocketJson()` function that generates the complete JSON message with all required fields, ensuring consistency between initial and periodic WebSocket messages.
+
+### Changes Made
+1. **Added `buildDebugWebSocketJson()` function** (lines 282-299)
+2. **Refactored `onDebugWebSocketEvent()`** to use the centralized function (lines 577-579)
+3. **Refactored `taskSystem()`** to use the centralized function (lines 1906-1909)
+
+### Benefits
+- **Bug Fix**: Initial WebSocket message now includes all required fields
+- **Consistency**: Both initial and periodic messages have identical structure
+- **Maintainability**: Single source of truth for WebSocket JSON generation
+- **DRY Principle**: Eliminated code duplication
 
 ## Build Status
 
