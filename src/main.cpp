@@ -1883,9 +1883,17 @@ void taskSystem(void* pvParameters) {
         if (xSemaphoreTake(mutex, portMAX_DELAY)) {
             ElegantOTA.loop();
             if (flagRestartNow) {
+                debugPrintln("Restarting...");
                 // Gracefully disconnect MQTT
                 if (mqttClient.connected()) {
                     mqttClient.disconnect();
+                }
+                
+                // Gracefully disconnect WebSocket debug client
+                if (wsDebugClient != NULL) {
+                    wsDebugClient->close();
+                    wsDebugClient = NULL;
+                    wsDebugStreaming = false;
                 }
                 
                 // Wait before restart
