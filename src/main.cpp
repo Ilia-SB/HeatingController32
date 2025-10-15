@@ -221,11 +221,11 @@ volatile bool wsDebugStreaming = false;      // true = direct push, false = buff
 
 
 // WebSocket send buffer - batch messages to avoid overwhelming the send queue
+#define WS_SEND_BATCH_SIZE 512       // Send when buffer reaches this size
+#define WS_SEND_BATCH_INTERVAL 50    // Or send every 50ms
 static char wsSendBuffer[WS_SEND_BATCH_SIZE];
 static size_t wsSendBufferPos = 0;
 static unsigned long wsLastSendTime = 0;
-#define WS_SEND_BATCH_SIZE 512       // Send when buffer reaches this size
-#define WS_SEND_BATCH_INTERVAL 50    // Or send every 50ms
 
 // Stack watermarks for tasks
 volatile UBaseType_t taskSystemStackWatermark = 0;
@@ -1873,7 +1873,10 @@ void taskMain(void* pvParameters) {
     while(true) {
         if (xSemaphoreTake(mutex, portMAX_DELAY)) {
             requestTemperatures();
-            vTaskDelay(READ_SENSORS_DELAY / portTICK_PERIOD_MS);
+            xSemaphoreGive(mutex);
+        }
+        vTaskDelay(READ_SENSORS_DELAY / portTICK_PERIOD_MS);
+        if (xSemaphoreTake(mutex, portMAX_DELAY)) {
             readTemperatures();
             processHeaters();
             xSemaphoreGive(mutex);
