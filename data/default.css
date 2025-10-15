@@ -255,6 +255,7 @@ a {
 .debug-field label {
     display: inline-block;
     width: 200px;
+    font-size: 0.85em;
     font-weight: bold;
 }
 
@@ -291,6 +292,11 @@ a {
 }
 
 .power-value {
-    font-weight: bold;
+    font-weight: normal;
     color: #4CAF50;
+}
+
+/* Debug page field font sizes */
+#totalReboots, #lastRebootTime, #taskSystemStack, #taskMainStack, #taskMqttPublishStack, .power-label {
+    font-size: 0.85em;
 }
