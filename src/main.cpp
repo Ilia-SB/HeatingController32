@@ -26,7 +26,7 @@
 
 TaskHandle_t hndlSystem;
 TaskHandle_t hndlMain;
-TaskHandle_t hndlMqttPublish;
+TaskHandle_t hndlMqtt;
 
 SemaphoreHandle_t mutex = NULL;
 
@@ -44,12 +44,12 @@ struct MqttCommand {
     bool retain;
 };
 
-QueueHandle_t mqttPublishQueue = NULL;
+QueueHandle_t mqttQueue = NULL;
 #define MQTT_PUBLISH_QUEUE_SIZE 20
 
 void taskSystem(void* pvParameters);
 void taskMain(void* pvParameters);
-void taskMqttPublish(void* pvParameters);
+void taskMqtt(void* pvParameters);
 
 WiFiClient ethClient;
 static bool ethConnected = false;
@@ -130,7 +130,7 @@ void updateOutputs(uint16_t);
 void setPorts(boolean[]);
 void processCommand(char*, char*, char*);
 void mqttCallback(char*, byte*, const unsigned int);
-bool queueMqttPublish(const char* topic, const char* payload, bool retain);
+bool queueMqtt(const char* topic, const char* payload, bool retain);
 void subscribeToExternalSensors(void);
 bool mqttConnect(void);
 void WiFiEvent(WiFiEvent_t);
@@ -229,8 +229,8 @@ void heaterItemNotificationCallback(HeaterItem& heater) {
 }
 
 // MQTT Publish Queue Helper Function
-bool queueMqttPublish(const char* topic, const char* payload, bool retain) {
-    if (mqttPublishQueue == NULL) {
+bool queueMqtt(const char* topic, const char* payload, bool retain) {
+    if (mqttQueue == NULL) {
         return false;
     }
     
@@ -244,7 +244,7 @@ bool queueMqttPublish(const char* topic, const char* payload, bool retain) {
     
     cmd.retain = retain;
     
-    BaseType_t result = xQueueSend(mqttPublishQueue, &cmd, 0); // Non-blocking
+    BaseType_t result = xQueueSend(mqttQueue, &cmd, 0); // Non-blocking
     if (result != pdTRUE) {
         debugPrint("MQTT publish queue full, dropping message for topic: ");
         debugPrintln(topic);
@@ -256,7 +256,7 @@ bool queueMqttPublish(const char* topic, const char* payload, bool retain) {
 
 // MQTT Disconnect Helper Function
 bool queueMqttDisconnect() {
-    if (mqttPublishQueue == NULL) {
+    if (mqttQueue == NULL) {
         return false;
     }
     
@@ -266,7 +266,7 @@ bool queueMqttDisconnect() {
     cmd.payload[0] = '\0';
     cmd.retain = false;
     
-    BaseType_t result = xQueueSend(mqttPublishQueue, &cmd, 0); // Non-blocking
+    BaseType_t result = xQueueSend(mqttQueue, &cmd, 0); // Non-blocking
     if (result != pdTRUE) {
         debugPrintln("MQTT disconnect queue full, dropping disconnect command");
         return false;
@@ -277,7 +277,7 @@ bool queueMqttDisconnect() {
 
 // MQTT Subscribe Helper Function
 bool queueMqttSubscribe(const char* topic) {
-    if (mqttPublishQueue == NULL) {
+    if (mqttQueue == NULL) {
         return false;
     }
     
@@ -288,7 +288,7 @@ bool queueMqttSubscribe(const char* topic) {
     cmd.payload[0] = '\0';
     cmd.retain = false;
     
-    BaseType_t result = xQueueSend(mqttPublishQueue, &cmd, 0); // Non-blocking
+    BaseType_t result = xQueueSend(mqttQueue, &cmd, 0); // Non-blocking
     if (result != pdTRUE) {
         debugPrint("MQTT subscribe queue full, dropping subscription for topic: ");
         debugPrintln(topic);
@@ -320,7 +320,7 @@ static unsigned long wsLastSendTime = 0;
 // Stack watermarks for tasks
 volatile UBaseType_t taskSystemStackWatermark = 0;
 volatile UBaseType_t taskMainStackWatermark = 0;
-volatile UBaseType_t taskMqttPublishStackWatermark = 0;
+volatile UBaseType_t taskMqttStackWatermark = 0;
 
 // Available power tracking for debug display
 volatile int16_t availablePowerPhases[NUMBER_OF_PHASES] = {0, 0, 0};
@@ -335,7 +335,7 @@ String cachedLastRebootReason = "Unknown";
 String buildDebugWebSocketJson() {
     String json = "{\"taskSystemStack\":" + String(taskSystemStackWatermark) + 
                  ",\"taskMainStack\":" + String(taskMainStackWatermark) +
-                 ",\"taskMqttPublishStack\":" + String(taskMqttPublishStackWatermark) +
+                 ",\"taskMqttStack\":" + String(taskMqttStackWatermark) +
                  ",\"availablePower\":[" + 
                  String(availablePowerPhases[0]) + "," + 
                  String(availablePowerPhases[1]) + "," + 
@@ -727,7 +727,7 @@ void processCommand(char* item, char* command, char* payload) {
             if (settings.setHysteresis(payload)) {
                 settings.getHysteresisCStr(val);
                 strcat(statusTopic, HYSTERESIS);
-                queueMqttPublish(statusTopic, val, false);
+                queueMqtt(statusTopic, val, false);
                 saveSettings(settings);
             }
         }
@@ -743,7 +743,7 @@ void processCommand(char* item, char* command, char* payload) {
                 if (settings.setConsumptionLimit(payload, phase)) {
                     settings.getConsumptionLimitCStr(val, phase);
                     strcat(statusTopic, CONSUMPTION_LIMIT);
-                    queueMqttPublish(statusTopic, val, false);
+                    queueMqtt(statusTopic, val, false);
                     saveSettings(settings);
                 }
             }
@@ -931,7 +931,7 @@ void WiFiEvent(WiFiEvent_t event) {
         ethConnected = true;
         ISR_Timer.disable(TIMER_NUM_ETHERNET_LED_BLINK);
         ethernetLed(HIGH);
-        // MQTT connection will be handled automatically by taskMqttPublish
+        // MQTT connection will be handled automatically by taskMqtt
         break;
     case ARDUINO_EVENT_ETH_DISCONNECTED:
         Serial.println("ETH Disconnected");
@@ -1257,7 +1257,7 @@ void readTemperatures() {
                     mqttTopic += heaterItems[i].getSubtopic();
                     mqttTopic += "/STATE";
 
-                    queueMqttPublish(mqttTopic.c_str(), mqttPayload.c_str(), false);
+                    queueMqtt(mqttTopic.c_str(), mqttPayload.c_str(), false);
                     debugPrint("Heater ");debugPrint(heaterItems[i].getName());debugPrint(": number of temperature read errors since last report: ");debugPrintln(heaterItems[i].getTempReadErrors());
                     heaterItems[i].setTempReadErrors(0); //reset counter
                 }
@@ -1655,7 +1655,7 @@ void reportHeaterState(HeaterItem& heater) {
     String mqttPayload;
     serializeJson(doc, mqttPayload);
 
-    queueMqttPublish(mqttTopic.c_str(), mqttPayload.c_str(), true);
+    queueMqtt(mqttTopic.c_str(), mqttPayload.c_str(), true);
 }
 
 void initHeaters() {
@@ -1956,7 +1956,7 @@ void taskMain(void* pvParameters) {
     }
 }
 
-void taskMqttPublish(void* pvParameters) {
+void taskMqtt(void* pvParameters) {
     MqttCommand cmd;
     unsigned long lastReconnectAttempt = 0;
     const unsigned long RECONNECT_INTERVAL = 1000; // Try reconnect every 1s
@@ -2012,7 +2012,7 @@ void taskMqttPublish(void* pvParameters) {
         }
         
         // 3. Process queued commands (with 100ms timeout for responsive loop)
-        if (xQueueReceive(mqttPublishQueue, &cmd, pdMS_TO_TICKS(100)) == pdTRUE) {
+        if (xQueueReceive(mqttQueue, &cmd, pdMS_TO_TICKS(100)) == pdTRUE) {
             switch (cmd.type) {
                 case MQTT_CMD_PUBLISH:
                     if (mqttClient.connected()) {
@@ -2055,7 +2055,7 @@ void taskMqttPublish(void* pvParameters) {
         }
         
         // Update stack watermark
-        taskMqttPublishStackWatermark = uxTaskGetStackHighWaterMark(NULL);
+        taskMqttStackWatermark = uxTaskGetStackHighWaterMark(NULL);
     }
 }
 
@@ -2381,7 +2381,7 @@ void setup()
         String response = "{";
         response += "\"taskSystemStack\":" + String(taskSystemStackWatermark) + ",";
         response += "\"taskMainStack\":" + String(taskMainStackWatermark) + ",";
-        response += "\"taskMqttPublishStack\":" + String(taskMqttPublishStackWatermark) + ",";
+        response += "\"taskMqttStack\":" + String(taskMqttStackWatermark) + ",";
         response += "\"availablePower\":[" + 
                    String(availablePowerPhases[0]) + "," + 
                    String(availablePowerPhases[1]) + "," + 
@@ -2514,18 +2514,18 @@ void setup()
         }
     }
 
-    // MQTT connection will be handled automatically by taskMqttPublish
+    // MQTT connection will be handled automatically by taskMqtt
 
     debugPrintln("Starting tasks...");
     mutex = xSemaphoreCreateMutex();
     
     // Create MQTT publish queue
-    mqttPublishQueue = xQueueCreate(MQTT_PUBLISH_QUEUE_SIZE, sizeof(MqttCommand));
+    mqttQueue = xQueueCreate(MQTT_PUBLISH_QUEUE_SIZE, sizeof(MqttCommand));
 
     //stack size calculation based on empirical data
     xTaskCreate(taskSystem, "System", 6144, NULL, 1, &hndlSystem);
     xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
-    xTaskCreate(taskMqttPublish, "MqttPublish", 8192, NULL, 2, &hndlMqttPublish);  // Higher priority (2), double stack (8KB)
+    xTaskCreate(taskMqtt, "Mqtt", 8192, NULL, 2, &hndlMqtt);  // Higher priority (2), double stack (8KB)
 }
 
 void loop() {

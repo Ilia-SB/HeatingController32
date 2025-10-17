@@ -68,7 +68,7 @@ String cachedLastRebootReason = "Unknown";
 {
   "taskSystemStack": 1234,
   "taskMainStack": 5678,
-  "taskMqttPublishStack": 9012,
+  "taskMqttStack": 9012,
   "availablePower": [1000, 2000, 3000],
   "usingMeasured": [true, false, true],
   "totalReboots": 42,

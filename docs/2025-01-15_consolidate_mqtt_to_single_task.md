@@ -1,20 +1,20 @@
-# Consolidate All MQTT Operations to taskMqttPublish
+# Consolidate All MQTT Operations to taskMqtt
 
 ## Overview
-Consolidated all MQTT operations (connect, disconnect, loop, subscribe, publish) into the `taskMqttPublish` task, making it fully autonomous and removing MQTT operations from `taskSystem` and other locations. This improves encapsulation, thread safety, and system reliability.
+Consolidated all MQTT operations (connect, disconnect, loop, subscribe, publish) into the `taskMqtt` task, making it fully autonomous and removing MQTT operations from `taskSystem` and other locations. This improves encapsulation, thread safety, and system reliability.
 
 ## Architecture Change Rationale
 
 ### Before
-- `taskMqttPublish`: Only handled publishing via queue
+- `taskMqtt`: Only handled publishing via queue
 - `taskSystem`: Handled `mqttClient.loop()`, connection management, and disconnect
 - Various locations: Called `subscribeToExternalSensors()` which directly called `mqttClient.subscribe()`
 - `setup()`: Initial connection and loop during startup
 
 ### After
-- `taskMqttPublish`: **Fully autonomous** - handles all MQTT operations
+- `taskMqtt`: **Fully autonomous** - handles all MQTT operations
 - `taskSystem`: Simplified - no MQTT concerns
-- All MQTT operations: Queued to `taskMqttPublish` for processing
+- All MQTT operations: Queued to `taskMqtt` for processing
 - `setup()`: No direct MQTT calls - task handles everything
 
 ## Changes Made
@@ -38,19 +38,19 @@ struct MqttCommand {
 };
 ```
 
-Replaced `MqttPublishMessage` with `MqttCommand` to handle all MQTT operations.
+Replaced `MqttMessage` with `MqttCommand` to handle all MQTT operations.
 
 ### 2. Helper Functions
 **File**: `src/main.cpp` (lines 231-299)
 
 Updated and added helper functions:
-- `queueMqttPublish()` - Updated to use new command structure
+- `queueMqtt()` - Updated to use new command structure
 - `queueMqttDisconnect()` - New function for graceful shutdown
 - `queueMqttSubscribe()` - New function for subscription requests
 
 **Note**: No `queueMqttConnect()` or `queueMqttLoop()` needed - task handles these automatically.
 
-### 3. Autonomous taskMqttPublish
+### 3. Autonomous taskMqtt
 **File**: `src/main.cpp` (lines 1998-2099)
 
 Major refactor to make task fully autonomous:
@@ -79,7 +79,7 @@ if (!mqttClient.connected()) {
 #### Command Processing:
 ```cpp
 // 3. Process queued commands (with 100ms timeout for responsive loop)
-if (xQueueReceive(mqttPublishQueue, &cmd, pdMS_TO_TICKS(100)) == pdTRUE) {
+if (xQueueReceive(MqttQueue, &cmd, pdMS_TO_TICKS(100)) == pdTRUE) {
     switch (cmd.type) {
         case MQTT_CMD_PUBLISH: // Handle publishing
         case MQTT_CMD_DISCONNECT: // Handle graceful disconnect
@@ -109,14 +109,14 @@ The task is now much simpler with no MQTT concerns.
 Removed ALL direct MQTT calls:
 - **Removed**: `mqttConnect()` call
 - **Removed**: 5-second wait loop for MQTT data
-- **Simplified**: Just start tasks and let `taskMqttPublish` handle everything
+- **Simplified**: Just start tasks and let `taskMqtt` handle everything
 
 ### 7. Task Priority and Stack Allocation
 **File**: `src/main.cpp` (line 2577)
 
 Updated task creation:
 ```cpp
-xTaskCreate(taskMqttPublish, "MqttPublish", 8192, NULL, 2, &hndlMqttPublish);
+xTaskCreate(taskMqtt, "Mqtt", 8192, NULL, 2, &hndlMqtt);
 ```
 
 - **Priority**: 2 (higher than taskSystem and taskMain which are priority 1)
@@ -125,11 +125,11 @@ xTaskCreate(taskMqttPublish, "MqttPublish", 8192, NULL, 2, &hndlMqttPublish);
 ### 8. Removed mqttConnect Function
 **File**: `src/main.cpp` (lines 908-940)
 
-Completely removed the standalone `mqttConnect()` function since its logic is now embedded in `taskMqttPublish`.
+Completely removed the standalone `mqttConnect()` function since its logic is now embedded in `taskMqtt`.
 
 ## Key Benefits
 
-1. **Full Autonomy**: `taskMqttPublish` manages its own lifecycle without external coordination
+1. **Full Autonomy**: `taskMqtt` manages its own lifecycle without external coordination
 2. **Simpler Code**: Other tasks don't need to worry about MQTT at all
 3. **Better Thread Safety**: All MQTT operations happen in one task
 4. **Auto-Reconnection**: Built-in retry logic with 1-second interval
@@ -141,7 +141,7 @@ Completely removed the standalone `mqttConnect()` function since its logic is no
 
 - **Single MQTT Thread**: All MQTT operations isolated to one task
 - **Queue-Based Communication**: Other tasks communicate via thread-safe queues
-- **No Direct Access**: No task directly calls `mqttClient` methods except `taskMqttPublish`
+- **No Direct Access**: No task directly calls `mqttClient` methods except `taskMqtt`
 - **Automatic Reconnection**: No race conditions in connection management
 
 ## Testing Recommendations
@@ -165,7 +165,7 @@ Completely removed the standalone `mqttConnect()` function since its logic is no
 - Various locations: Direct calls to `subscribeToExternalSensors()`
 
 ### After (Centralized MQTT Operations):
-- `taskMqttPublish`: ALL MQTT operations (autonomous)
+- `taskMqtt`: ALL MQTT operations (autonomous)
 - All other locations: Queue commands via helper functions
 - `taskSystem`: Only `queueMqttDisconnect()` before restart
 - `subscribeToExternalSensors()`: Only `queueMqttSubscribe()` calls

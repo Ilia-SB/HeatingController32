@@ -56,7 +56,7 @@
         function updateWatermarks(data) {
             $('#taskSystemStack').text(data.taskSystemStack);
             $('#taskMainStack').text(data.taskMainStack);
-            $('#taskMqttPublishStack').text(data.taskMqttPublishStack);
+            $('#taskMqttStack').text(data.taskMqttStack);
             
             // Update reboot information if provided
             if (data.totalReboots !== undefined) {
@@ -87,13 +87,13 @@
                 $('#taskMainStack').removeClass('warning critical');
             }
             
-            // Color coding for taskMqttPublish
-            if (data.taskMqttPublishStack < 512) {
-                $('#taskMqttPublishStack').removeClass('warning').addClass('critical');
-            } else if (data.taskMqttPublishStack < 1024) {
-                $('#taskMqttPublishStack').removeClass('critical').addClass('warning');
+            // Color coding for taskMqtt
+            if (data.taskMqttStack < 512) {
+                $('#taskMqttStack').removeClass('warning').addClass('critical');
+            } else if (data.taskMqttStack < 1024) {
+                $('#taskMqttStack').removeClass('critical').addClass('warning');
             } else {
-                $('#taskMqttPublishStack').removeClass('warning critical');
+                $('#taskMqttStack').removeClass('warning critical');
             }
             
             // Update available power if provided
@@ -163,8 +163,8 @@
             </div>
             
             <div class="debug-field">
-                <label>taskMqttPublish Stack Free:</label>
-                <span id="taskMqttPublishStack">-</span> bytes
+                <label>taskMqtt Stack Free:</label>
+                <span id="taskMqttStack">-</span> bytes
             </div>
             
             <div class="debug-field">

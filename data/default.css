@@ -297,6 +297,6 @@ a {
 }
 
 /* Debug page field font sizes */
-#totalReboots, #lastRebootTime, #taskSystemStack, #taskMainStack, #taskMqttPublishStack, .power-label {
+#totalReboots, #lastRebootTime, #taskSystemStack, #taskMainStack, #taskMqttStack, .power-label {
     font-size: 0.85em;
 }
