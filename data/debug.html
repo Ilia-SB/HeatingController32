@@ -10,14 +10,42 @@
     <script>
         var ws;
         var reconnectInterval;
+        var reconnectAttempts = 0;
+        var maxReconnectAttempts = 5;
+        var reconnectDelay = 2000; // Start with 2 seconds
         var autoScroll = true;
         
+        function updateConnectionStatus(status, color) {
+            var statusEl = $('#connectionStatus');
+            statusEl.text(status);
+            statusEl.css('background-color', color);
+        }
+        
         function connectWebSocket() {
+            // Prevent multiple simultaneous connection attempts
+            if (ws && ws.readyState === WebSocket.CONNECTING) {
+                console.log('WebSocket connection already in progress, skipping...');
+                return;
+            }
+            
+            // Clean up existing connection
+            if (ws) {
+                ws.onopen = null;
+                ws.onclose = null;
+                ws.onerror = null;
+                ws.onmessage = null;
+            }
+            
+            updateConnectionStatus('Connecting...', '#ff9800');
             ws = new WebSocket('ws://' + window.location.host + '/ws/debug');
             
             ws.onopen = function() {
-                console.log('WebSocket connected');
+                console.log('WebSocket connected successfully');
+                updateConnectionStatus('Connected', '#4CAF50');
                 clearInterval(reconnectInterval);
+                clearTimeout(reconnectInterval);
+                reconnectAttempts = 0; // Reset on successful connection
+                reconnectDelay = 2000; // Reset delay
             };
             
             ws.onmessage = function(event) {
@@ -37,11 +65,30 @@
             
             ws.onerror = function(error) {
                 console.error('WebSocket error:', error);
+                updateConnectionStatus('Error', '#f44336');
             };
             
-            ws.onclose = function() {
-                console.log('WebSocket closed, reconnecting in 2 seconds...');
-                reconnectInterval = setInterval(connectWebSocket, 2000);
+            ws.onclose = function(event) {
+                console.log('WebSocket closed, code:', event.code, 'reason:', event.reason);
+                clearInterval(reconnectInterval);
+                clearTimeout(reconnectInterval);
+                
+                // Only reconnect if we haven't exceeded max attempts and it's not a normal closure
+                if (reconnectAttempts < maxReconnectAttempts && event.code !== 1000) {
+                    reconnectAttempts++;
+                    var statusText = 'Reconnecting in ' + (reconnectDelay/1000) + 's... (attempt ' + reconnectAttempts + '/' + maxReconnectAttempts + ')';
+                    updateConnectionStatus(statusText, '#ff9800');
+                    console.log('Reconnecting in', reconnectDelay/1000, 'seconds... (attempt', reconnectAttempts, '/', maxReconnectAttempts, ')');
+                    reconnectInterval = setTimeout(connectWebSocket, reconnectDelay);
+                    reconnectDelay = Math.min(reconnectDelay * 1.5, 30000); // Exponential backoff, max 30s
+                } else if (reconnectAttempts >= maxReconnectAttempts) {
+                    updateConnectionStatus('Max attempts reached', '#f44336');
+                    console.log('Max reconnection attempts reached. Please refresh the page to try again.');
+                    appendDebugOutput('\n[WebSocket] Max reconnection attempts reached. Please refresh the page.\n');
+                } else {
+                    updateConnectionStatus('Disconnected', '#666');
+                    console.log('WebSocket closed normally, not reconnecting');
+                }
             };
         }
         
@@ -129,6 +176,23 @@
                     $(this).css('background-color', '#666');
                 }
             });
+            
+            $('#reconnectBtn').click(function() {
+                console.log('Manual reconnect requested');
+                // Reset reconnection state
+                reconnectAttempts = 0;
+                reconnectDelay = 2000;
+                clearInterval(reconnectInterval);
+                clearTimeout(reconnectInterval);
+                
+                // Close existing connection if any
+                if (ws) {
+                    ws.close();
+                }
+                
+                // Start new connection
+                connectWebSocket();
+            });
         });
     </script>
     <div class="content">
@@ -184,6 +248,11 @@
             <div style="margin: 20px 0; display: flex; gap: 10px; justify-content: center;">
                 <button id="autoScrollBtn" class="bgrn" style="flex: 1; max-width: 200px;">Auto-scroll: ON</button>
                 <button id="clearBtn" class="bgrn" style="flex: 1; max-width: 200px;">Clear Display</button>
+                <button id="reconnectBtn" class="bgrn" style="flex: 1; max-width: 200px;">Reconnect WebSocket</button>
+            </div>
+            
+            <div style="margin: 10px 0; text-align: center;">
+                <span id="connectionStatus" style="padding: 5px 10px; border-radius: 3px; background-color: #666; color: white;">Connecting...</span>
             </div>
         </div>
         
