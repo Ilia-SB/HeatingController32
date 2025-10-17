@@ -2523,7 +2523,7 @@ void setup()
     mqttPublishQueue = xQueueCreate(MQTT_PUBLISH_QUEUE_SIZE, sizeof(MqttCommand));
 
     //stack size calculation based on empirical data
-    xTaskCreate(taskSystem, "System", 12288, NULL, 1, &hndlSystem);  // Increased for external sensor MQTT handling
+    xTaskCreate(taskSystem, "System", 6144, NULL, 1, &hndlSystem);
     xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
     xTaskCreate(taskMqttPublish, "MqttPublish", 8192, NULL, 2, &hndlMqttPublish);  // Higher priority (2), double stack (8KB)
 }
