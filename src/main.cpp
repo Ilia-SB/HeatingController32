@@ -1905,8 +1905,9 @@ void taskSystem(void* pvParameters) {
             ElegantOTA.loop();
             if (flagRestartNow) {
                 debugPrintln("Restarting...");
-                // Gracefully disconnect MQTT
                 queueMqttDisconnect();
+                flushWebSocketBuffer();
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
                 
                 // Gracefully disconnect WebSocket debug client
                 if (wsDebugClient != NULL) {
@@ -1927,14 +1928,13 @@ void taskSystem(void* pvParameters) {
             }
             xSemaphoreGive(mutex);
         }
-        taskSystemStackWatermark = uxTaskGetStackHighWaterMark(NULL);
         
         // Push watermarks and available power to WebSocket client if connected
         if (wsDebugStreaming && wsDebugClient != NULL && wsDebugClient->canSend()) {
             String json = buildDebugWebSocketJson();
             wsDebugClient->text(json);
         }
-        
+        taskSystemStackWatermark = uxTaskGetStackHighWaterMark(NULL);        
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
@@ -1963,7 +1963,7 @@ void taskMqtt(void* pvParameters) {
     
     while(true) {
         // 1. Check connection and reconnect if needed
-        if (!mqttClient.connected()) {
+        if (!mqttClient.connected() && !flagRestartNow) {
             unsigned long now = millis();
             if (now - lastReconnectAttempt > RECONNECT_INTERVAL) {
                 lastReconnectAttempt = now;
@@ -2376,73 +2376,7 @@ void setup()
     server.on("/debug", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(LittleFS, "/debug.html", String(), false, webServerPlaceholderProcessor);
     });
-    server.on("/debug.json", HTTP_GET, [](AsyncWebServerRequest* request) {
-        // Build JSON response manually to avoid ArduinoJson size limitations
-        String response = "{";
-        response += "\"taskSystemStack\":" + String(taskSystemStackWatermark) + ",";
-        response += "\"taskMainStack\":" + String(taskMainStackWatermark) + ",";
-        response += "\"taskMqttStack\":" + String(taskMqttStackWatermark) + ",";
-        response += "\"availablePower\":[" + 
-                   String(availablePowerPhases[0]) + "," + 
-                   String(availablePowerPhases[1]) + "," + 
-                   String(availablePowerPhases[2]) + "],";
-        response += "\"usingMeasured\":[" + 
-                   String(usingMeasuredPower[0] ? "true" : "false") + "," + 
-                   String(usingMeasuredPower[1] ? "true" : "false") + "," + 
-                   String(usingMeasuredPower[2] ? "true" : "false") + "],";
-        
-        // Read debug buffer using head/tail circular buffer logic
-        String debugOutput = "";
-        if (debugBufferMutex != NULL && xSemaphoreTake(debugBufferMutex, pdMS_TO_TICKS(100))) {
-            uint16_t head = debugBufferHead;
-            uint16_t tail = debugBufferTail;
-            
-            // Calculate data length
-            uint16_t dataLen;
-            if (tail >= head) {
-                dataLen = tail - head;
-            } else {
-                dataLen = DEBUG_BUFFER_SIZE - head + tail;
-            }
-            
-            // Read from head to tail (wrapping around if necessary)
-            uint16_t pos = head;
-            while (pos != tail) {
-                char c = debugBuffer[pos];
-                
-                // Escape special JSON characters
-                if (c == '"') {
-                    debugOutput += "\\\"";
-                } else if (c == '\\') {
-                    debugOutput += "\\\\";
-                } else if (c == '\n') {
-                    debugOutput += "\\n";
-                } else if (c == '\r') {
-                    debugOutput += "\\r";
-                } else if (c == '\t') {
-                    debugOutput += "\\t";
-                } else {
-                    debugOutput += c;
-                }
-                
-                pos = (pos + 1) % DEBUG_BUFFER_SIZE;
-            }
-            
-            xSemaphoreGive(debugBufferMutex);
-            
-            // Add debug info to response
-            response += "\"head\":" + String(head) + ",";
-            response += "\"tail\":" + String(tail) + ",";
-            response += "\"dataLen\":" + String(dataLen) + ",";
-        } else {
-            debugOutput = "Failed to acquire mutex";
-        }
-        
-        response += "\"debugOutput\":\"" + debugOutput + "\"";
-        response += "}";
-        
-        request->send(200, "application/json", response);
-    });
+    
     server.on("/rebooting.html", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(LittleFS, "/rebooting.html", "text/html");
     });
@@ -2524,7 +2458,7 @@ void setup()
 
     //stack size calculation based on empirical data
     xTaskCreate(taskSystem, "System", 6144, NULL, 1, &hndlSystem);
-    xTaskCreate(taskMain, "Main", 4096, NULL, 1, &hndlMain);
+    xTaskCreate(taskMain, "Main", 6144, NULL, 1, &hndlMain);
     xTaskCreate(taskMqtt, "Mqtt", 8192, NULL, 2, &hndlMqtt);  // Higher priority (2), double stack (8KB)
 }
 
