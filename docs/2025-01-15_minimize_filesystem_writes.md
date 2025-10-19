@@ -57,9 +57,14 @@ void ensureHeatersDirectory();
 - Uses switch statement for property-specific handling
 
 #### Refactored loadState() Function
-- Automatically migrates from old format to new format on first load
+- Calls separate migration function to handle old format conversion
 - Reads each property from individual files
 - Falls back to defaults if property files don't exist
+
+#### New Migration Function
+- `migrateHeaterFromOldFormat()` - Dedicated function for migrating from old JSON format
+- Checks for old format files and converts them to new per-property format
+- Automatically deletes old files after successful migration
 
 #### Updated MQTT Command Handler
 - Now saves individual properties instead of entire state

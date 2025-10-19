@@ -163,6 +163,7 @@ void saveSettings(Settings&);
 void loadSettings(Settings&);
 void saveState(HeaterItem&, uint8_t = 255); // 255 = PROP_ALL
 void loadState(HeaterItem&);
+void migrateHeaterFromOldFormat(uint8_t, HeaterItem&);
 void processSettingsForm(AsyncWebServerRequest*);
 void processControlForm(AsyncWebServerRequest*);
 void reportHeatersState(void);
@@ -1364,6 +1365,54 @@ void ensureHeatersDirectory() {
     }
 }
 
+void migrateHeaterFromOldFormat(uint8_t heaterNum, HeaterItem& heaterItem) {
+    String oldFileName;
+    getItemFilename(heaterNum, oldFileName);
+    
+    if (!LittleFS.exists(oldFileName)) {
+        return; // No old format file to migrate
+    }
+    
+    // Load from old JSON format
+    File file = LittleFS.open(oldFileName, FILE_READ, true);
+    StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
+    deserializeJson(doc, file);
+    
+    // Load properties from old JSON
+    heaterItem.setName(doc["name"].as<String>());
+    heaterItem.setSubtopic(doc["subtopic"].as<String>());
+    heaterItem.setIsEnabled(doc["isEnabled"].as<bool>());
+    JsonArray sensorAddress = doc["sensorAddress"];
+    byte addr[SENSOR_ADDR_LEN];
+    for (uint8_t i=0; i<SENSOR_ADDR_LEN; i++) {
+        addr[i] = sensorAddress.getElement(i).as<byte>();
+    }
+    heaterItem.setSensorAddress(addr);
+    heaterItem.setPort(doc["port"].as<uint8_t>());
+    heaterItem.setPhase(doc["phase"].as<uint8_t>());
+    heaterItem.setPowerConsumption(doc["powerConsumption"].as<uint16_t>());
+    heaterItem.setWantsOn(doc["isOn"].as<bool>());
+    heaterItem.setPriority(doc["priority"].as<uint8_t>());
+    heaterItem.setTargetTemperature(doc["targetTemperature"].as<float>());
+    heaterItem.setTemperatureAdjust(doc["temperatureAdjust"].as<float>());
+    heaterItem.setIsAuto(doc["isAuto"].as<bool>());
+    if (doc.containsKey("useExternalSensor")) {
+        heaterItem.setUseExternalSensor(doc["useExternalSensor"].as<bool>());
+    }
+    if (doc.containsKey("externalSensorTopic")) {
+        heaterItem.setExternalSensorTopic(doc["externalSensorTopic"].as<const char*>());
+    }
+    
+    file.close();
+    
+    // Save to new format
+    saveState(heaterItem, PROP_ALL);
+    
+    // Delete old file
+    LittleFS.remove(oldFileName);
+    debugPrint("Migrated heater "); debugPrint(String(heaterNum)); debugPrintln(" to new format");
+}
+
 void getSettingsFilename(String& fileName) {
     fileName = "/settings.cfg";
 }
@@ -1707,49 +1756,7 @@ void loadState(HeaterItem& heaterItem) {
     String fileName;
     
     // Check if we need to migrate from old format
-    String oldFileName;
-    getItemFilename(heaterNum, oldFileName);
-    if (LittleFS.exists(oldFileName)) {
-        // Migrate from old format
-        File file = LittleFS.open(oldFileName, FILE_READ, true);
-        StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
-        deserializeJson(doc, file);
-        
-        // Load from old JSON and save to new format
-        heaterItem.setName(doc["name"].as<String>());
-        heaterItem.setSubtopic(doc["subtopic"].as<String>());
-        heaterItem.setIsEnabled(doc["isEnabled"].as<bool>());
-        JsonArray sensorAddress = doc["sensorAddress"];
-        byte addr[SENSOR_ADDR_LEN];
-        for (uint8_t i=0; i<SENSOR_ADDR_LEN; i++) {
-            addr[i] = sensorAddress.getElement(i).as<byte>();
-        }
-        heaterItem.setSensorAddress(addr);
-        heaterItem.setPort(doc["port"].as<uint8_t>());
-        heaterItem.setPhase(doc["phase"].as<uint8_t>());
-        heaterItem.setPowerConsumption(doc["powerConsumption"].as<uint16_t>());
-        heaterItem.setWantsOn(doc["isOn"].as<bool>());
-        heaterItem.setPriority(doc["priority"].as<uint8_t>());
-        heaterItem.setTargetTemperature(doc["targetTemperature"].as<float>());
-        heaterItem.setTemperatureAdjust(doc["temperatureAdjust"].as<float>());
-        heaterItem.setIsAuto(doc["isAuto"].as<bool>());
-        if (doc.containsKey("useExternalSensor")) {
-            heaterItem.setUseExternalSensor(doc["useExternalSensor"].as<bool>());
-        }
-        if (doc.containsKey("externalSensorTopic")) {
-            heaterItem.setExternalSensorTopic(doc["externalSensorTopic"].as<const char*>());
-        }
-        
-        file.close();
-        
-        // Save to new format
-        saveState(heaterItem, PROP_ALL);
-        
-        // Delete old file
-        LittleFS.remove(oldFileName);
-        debugPrint("Migrated heater "); debugPrint(String(heaterNum)); debugPrintln(" to new format");
-        return;
-    }
+    migrateHeaterFromOldFormat(heaterNum, heaterItem);
     
     // Load from new individual property files
     getHeaterPropertyFilename(heaterNum, "name", fileName);
