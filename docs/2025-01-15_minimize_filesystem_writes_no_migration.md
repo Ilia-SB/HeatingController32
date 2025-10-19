@@ -145,18 +145,46 @@ Each property type has specific comparison logic:
 
 ## Migration Notes
 
-**Important:** This implementation does NOT include migration code. The system will start fresh with the new per-property file format. Any existing `/item0.cfg` style files will be ignored.
+**Migration Completed:** A Python migration script was created and executed to convert existing `item0.cfg` through `item7.cfg` files to the new per-property format.
 
-If migration is needed in the future, it would require:
-1. Detecting old format files
-2. Loading from old JSON format
-3. Saving to new per-property format
-4. Deleting old files
+### Migration Results
+- **8 heater configurations** successfully migrated
+- **104 property files** created in `data/heaters/` directory (8 heaters × 13 properties)
+- **All heater data preserved** including names, sensor addresses, settings, and external sensor topics
+
+### Migration Scripts Created
+1. **`migrate_heater_configs.py`** - Converts old JSON format to per-property files
+2. **`cleanup_old_configs.py`** - Safely removes old item*.cfg files after verification
+
+### Heater Configurations Migrated
+- Kitchen (heater 0)
+- Hall (heater 1) 
+- Bedroom (heater 2)
+- Toilet 1 (heater 3)
+- Toilet 2 (heater 4)
+- Room 1 (heater 5)
+- Room 2 (heater 6)
+- Room 3 (heater 7)
+
+### File Structure After Migration
+```
+data/heaters/
+├── 0_name.cfg → "Kitchen"
+├── 0_sensorAddress.cfg → "28 30 22 59 07 00 00 B9"
+├── 0_targetTemperature.cfg → "21"
+├── 0_externalSensorTopic.cfg → "tele/aux_sensor/kitchen"
+├── 1_name.cfg → "Hall"
+├── 1_temperatureAdjust.cfg → "0.100000001"
+└── ... (104 total property files)
+```
 
 ## Files Modified
 
 - `src/main.cpp` - Main implementation changes
 - `docs/2025-01-15_minimize_filesystem_writes_no_migration.md` - This documentation
+- `migrate_heater_configs.py` - Migration script (created and executed)
+- `cleanup_old_configs.py` - Cleanup script (created for future use)
+- `data/heaters/` - 104 new property files created during migration
 
 ## Code Quality
 
