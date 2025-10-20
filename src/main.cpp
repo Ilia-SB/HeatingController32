@@ -25,6 +25,11 @@
 #include <time.h>
 #include <ESPWebFileManager.h>
 
+//undef debug for file manager
+#ifdef EN_DEBUG
+    #undef EN_DEBUG
+#endif
+
 TaskHandle_t hndlSystem;
 TaskHandle_t hndlMain;
 TaskHandle_t hndlMqtt;
@@ -2567,7 +2572,10 @@ void setup()
     WiFi.onEvent(WiFiEvent);
     ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
 
-    fileManager.begin();
+    //will also init littlefs
+    if (!fileManager.begin()) {
+        debugPrintln("Failed to initialize file manager");
+    }
     fileManager.setServer(&server);
 
     //init settings
