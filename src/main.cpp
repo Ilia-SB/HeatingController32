@@ -23,6 +23,7 @@
 #include <ElegantOTA.h>
 #include <esp_system.h>
 #include <time.h>
+#include <ESPWebFileManager.h>
 
 TaskHandle_t hndlSystem;
 TaskHandle_t hndlMain;
@@ -73,6 +74,8 @@ WiFiClient ethClient;
 static bool ethConnected = false;
 
 AsyncWebServer server(80);
+
+ESPWebFileManager fileManager(FS_LITTLEFS, false);
 
 PubSubClient mqttClient(ethClient);
 
@@ -2564,10 +2567,8 @@ void setup()
     WiFi.onEvent(WiFiEvent);
     ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
 
-    if (!LittleFS.begin(true)) {
-        Serial.println("An Error has occurred while mounting SPIFFS");
-        return;
-    }
+    fileManager.begin();
+    fileManager.setServer(&server);
 
     //init settings
     loadSettings(settings);
