@@ -23,6 +23,7 @@
 #include <ElegantOTA.h>
 #include <esp_system.h>
 #include <time.h>
+#include <ESPWebFileManager.h>
 
 TaskHandle_t hndlSystem;
 TaskHandle_t hndlMain;
@@ -47,6 +48,24 @@ struct MqttCommand {
 QueueHandle_t mqttQueue = NULL;
 #define MQTT_PUBLISH_QUEUE_SIZE 20
 
+// HeaterItem Property Enum
+enum HeaterProperty {
+    PROP_NAME = 0,
+    PROP_SUBTOPIC = 1,
+    PROP_IS_ENABLED = 2,
+    PROP_SENSOR_ADDRESS = 3,
+    PROP_PORT = 4,
+    PROP_PHASE = 5,
+    PROP_IS_AUTO = 6,
+    PROP_POWER_CONSUMPTION = 7,
+    PROP_PRIORITY = 8,
+    PROP_TARGET_TEMPERATURE = 9,
+    PROP_TEMPERATURE_ADJUST = 10,
+    PROP_USE_EXTERNAL_SENSOR = 11,
+    PROP_EXTERNAL_SENSOR_TOPIC = 12,
+    PROP_ALL = 255  // Special case: save all properties
+};
+
 void taskSystem(void* pvParameters);
 void taskMain(void* pvParameters);
 void taskMqtt(void* pvParameters);
@@ -55,6 +74,8 @@ WiFiClient ethClient;
 static bool ethConnected = false;
 
 AsyncWebServer server(80);
+
+ESPWebFileManager fileManager(FS_LITTLEFS, false);
 
 PubSubClient mqttClient(ethClient);
 
@@ -143,7 +164,7 @@ void getItemFilename(uint8_t, String&);
 void getSettingsFilename(String&);
 void saveSettings(Settings&);
 void loadSettings(Settings&);
-void saveState(HeaterItem&);
+void saveState(HeaterItem&, uint8_t = 255); // 255 = PROP_ALL
 void loadState(HeaterItem&);
 void processSettingsForm(AsyncWebServerRequest*);
 void processControlForm(AsyncWebServerRequest*);
@@ -772,10 +793,9 @@ void processCommand(char* item, char* command, char* payload) {
     strcat(statusTopic, "/");
 
     HeaterItem* heater = &heaterItems[heaterNum];
-    bool save = false;
     if (strcasecmp(command, IS_AUTO) == 0) {
         heater->setIsAuto(payload);
-        save = true;
+        saveState(*heater, PROP_IS_AUTO);
     }
     if (strcasecmp(command, IS_ON) == 0) {
         if (heater->getIsAuto() == false)
@@ -783,52 +803,49 @@ void processCommand(char* item, char* command, char* payload) {
     }
     if (strcasecmp(command, PRIORITY) == 0) {
         heater->setPriority(payload);
-        save = true;
+        saveState(*heater, PROP_PRIORITY);
     }
     if (strcasecmp(command, TARGET_TEMPERATURE) == 0) {
         heater->setTargetTemperature(payload);
-        save = true;
+        saveState(*heater, PROP_TARGET_TEMPERATURE);
     }
     if (strcasecmp(command, SENSOR) == 0) {
         heater->setSensorAddress(payload);
-        save = true;
+        saveState(*heater, PROP_SENSOR_ADDRESS);
     }
     if (strcasecmp(command, PORT) == 0) {
         heater->setPort(payload);
-        save = true;
+        saveState(*heater, PROP_PORT);
     }
     if (strcasecmp(command, PHASE) == 0) {
         heater->setPhase(payload);
-        save = true;
+        saveState(*heater, PROP_PHASE);
     }
     if (strcasecmp(command, TEMPERATURE_ADJUST) == 0) {
         heater->setTemperatureAdjust(payload);
-        save = true;
+        saveState(*heater, PROP_TEMPERATURE_ADJUST);
     }
     if (strcasecmp(command, USE_EXTERNAL_SENSOR) == 0) {
         heater->setUseExternalSensor(payload);
-        save = true;
+        saveState(*heater, PROP_USE_EXTERNAL_SENSOR);
         subscribeToExternalSensors();
     }
     if (strcasecmp(command, EXTERNAL_SENSOR_TOPIC) == 0) {
         heater->setExternalSensorTopic(payload);
-        save = true;
+        saveState(*heater, PROP_EXTERNAL_SENSOR_TOPIC);
         subscribeToExternalSensors();
     }
     if (strcasecmp(command, CONSUMPTION) == 0) {
         heater->setPowerConsumption(payload);
-        save = true;
+        saveState(*heater, PROP_POWER_CONSUMPTION);
     }
     if (strcasecmp(command, IS_ENABLED) == 0) {
         heater->setIsEnaled(payload);
-        save = true;
+        saveState(*heater, PROP_IS_ENABLED);
     }
 
     heater->setIsConnected(checkSensorConnected(*heater));
     sanityCheckHeater(*heater);
-    if (save) {
-        saveState(*heater);
-    }
     reportHeaterState(*heater);
     // Signal taskSystem to call processHeaters() immediately after MQTT callback returns
     flagProcessHeatersNow = true;
@@ -1123,24 +1140,6 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += "\"></td></tr>";
         }
     }
-    if (placeholder.equals("BACKUP_ITEM_FILE")) {
-        for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-            String fileName;
-            getItemFilename(i, fileName);
-            if (LittleFS.exists(fileName)) {
-                retValue += "<label><p style=\"line-height: 1.8;\"><input type=\"checkbox\" data-url=\"";
-                retValue += fileName;
-                retValue += "\" checked>";
-                retValue += fileName;
-                if (heaterItems[i].getName().length() > 0) {
-                    retValue += " (";
-                    retValue += heaterItems[i].getName();
-                    retValue += ")";
-                }
-                retValue += "</p></label>";
-            }
-        }
-    }
     if (placeholder.equals("UNCONFIGURED")) {
         for (uint8_t i=0; i<unconfiguredSensorsCount; i++) {
             String sensor;
@@ -1336,6 +1335,21 @@ void getItemFilename(uint8_t i, String& fileName) {
     fileName += ".cfg";
 }
 
+void getHeaterPropertyFilename(uint8_t heaterNum, const char* property, String& fileName) {
+    fileName = "/heaters/";
+    fileName += String(heaterNum);
+    fileName += "_";
+    fileName += property;
+    fileName += ".cfg";
+}
+
+void ensureHeatersDirectory() {
+    if (!LittleFS.exists("/heaters")) {
+        LittleFS.mkdir("/heaters");
+    }
+}
+
+
 void getSettingsFilename(String& fileName) {
     fileName = "/settings.cfg";
 }
@@ -1366,20 +1380,246 @@ void saveSettings(Settings& settings) {
     file.close();
 }
 
-void saveState(HeaterItem& heaterItem) {
+void saveState(HeaterItem& heaterItem, uint8_t property) {
+    uint8_t heaterNum = heaterItem.getAddress();
+    ensureHeatersDirectory();
+    
+    // If PROP_ALL, recursively call for each property
+    if (property == PROP_ALL) {
+        for (int i = PROP_NAME; i < PROP_EXTERNAL_SENSOR_TOPIC + 1; i++) {
+            saveState(heaterItem, i);
+        }
+        return;
+    }
+    
+    // Switch on property to save specific one with inline property name
     String fileName;
-    getItemFilename(heaterItem.getAddress(), fileName);
-    File file = LittleFS.open(fileName, FILE_WRITE, true);
-    StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
-    itemToJson(heaterItem, doc, false);
-
-    debugPrint("Saving state to: "); debugPrintln(fileName);
-    char output[JSON_DOCUMENT_SIZE];
-    serializeJson(doc, output);
-    debugPrintln(output);
-
-    serializeJson(doc, file);
-    file.close();
+    
+    switch(property) {
+        case PROP_NAME: {
+            getHeaterPropertyFilename(heaterNum, "name", fileName);
+            String currentValue = "";
+            if (LittleFS.exists(fileName)) {
+                File file = LittleFS.open(fileName, FILE_READ);
+                currentValue = file.readString();
+                file.close();
+            }
+            String newValue = heaterItem.getName();
+            if (currentValue != newValue) {
+                File file = LittleFS.open(fileName, FILE_WRITE);
+                file.print(newValue);
+                file.close();
+                debugPrint("Updated "); debugPrintln(fileName);
+            }
+            break;
+        }
+        case PROP_SUBTOPIC: {
+            getHeaterPropertyFilename(heaterNum, "subtopic", fileName);
+            String currentValue = "";
+            if (LittleFS.exists(fileName)) {
+                File file = LittleFS.open(fileName, FILE_READ);
+                currentValue = file.readString();
+                file.close();
+            }
+            String newValue = heaterItem.getSubtopic();
+            if (currentValue != newValue) {
+                File file = LittleFS.open(fileName, FILE_WRITE);
+                file.print(newValue);
+                file.close();
+                debugPrint("Updated "); debugPrintln(fileName);
+            }
+            break;
+        }
+        case PROP_IS_ENABLED: {
+            getHeaterPropertyFilename(heaterNum, "isEnabled", fileName);
+            bool currentValue = false;
+            if (LittleFS.exists(fileName)) {
+                File file = LittleFS.open(fileName, FILE_READ);
+                currentValue = file.parseInt() != 0;
+                file.close();
+            }
+            bool newValue = heaterItem.getIsEnabled();
+            if (currentValue != newValue) {
+                File file = LittleFS.open(fileName, FILE_WRITE);
+                file.print(newValue ? "1" : "0");
+                file.close();
+                debugPrint("Updated "); debugPrintln(fileName);
+            }
+            break;
+        }
+        case PROP_SENSOR_ADDRESS: {
+            getHeaterPropertyFilename(heaterNum, "sensorAddress", fileName);
+            String currentValue = "";
+            if (LittleFS.exists(fileName)) {
+                File file = LittleFS.open(fileName, FILE_READ);
+                currentValue = file.readString();
+                file.close();
+            }
+            char newValueStr[3*SENSOR_ADDR_LEN];
+            heaterItem.getSensorAddressCStr(newValueStr);
+            String newValue = String(newValueStr);
+            if (currentValue != newValue) {
+                File file = LittleFS.open(fileName, FILE_WRITE);
+                file.print(newValue);
+                file.close();
+                debugPrint("Updated "); debugPrintln(fileName);
+            }
+            break;
+        }
+        case PROP_PORT: {
+            getHeaterPropertyFilename(heaterNum, "port", fileName);
+            uint8_t currentValue = HeaterItem::UNCONFIGURED;
+            if (LittleFS.exists(fileName)) {
+                File file = LittleFS.open(fileName, FILE_READ);
+                currentValue = file.parseInt();
+                file.close();
+            }
+            uint8_t newValue = heaterItem.getPort();
+            if (currentValue != newValue) {
+                File file = LittleFS.open(fileName, FILE_WRITE);
+                file.print(newValue);
+                file.close();
+                debugPrint("Updated "); debugPrintln(fileName);
+            }
+            break;
+        }
+        case PROP_PHASE: {
+            getHeaterPropertyFilename(heaterNum, "phase", fileName);
+            uint8_t currentValue = HeaterItem::UNCONFIGURED;
+            if (LittleFS.exists(fileName)) {
+                File file = LittleFS.open(fileName, FILE_READ);
+                currentValue = file.parseInt();
+                file.close();
+            }
+            uint8_t newValue = heaterItem.getPhase();
+            if (currentValue != newValue) {
+                File file = LittleFS.open(fileName, FILE_WRITE);
+                file.print(newValue);
+                file.close();
+                debugPrint("Updated "); debugPrintln(fileName);
+            }
+            break;
+        }
+        case PROP_IS_AUTO: {
+            getHeaterPropertyFilename(heaterNum, "isAuto", fileName);
+            bool currentValue = false;
+            if (LittleFS.exists(fileName)) {
+                File file = LittleFS.open(fileName, FILE_READ);
+                currentValue = file.parseInt() != 0;
+                file.close();
+            }
+            bool newValue = heaterItem.getIsAuto();
+            if (currentValue != newValue) {
+                File file = LittleFS.open(fileName, FILE_WRITE);
+                file.print(newValue ? "1" : "0");
+                file.close();
+                debugPrint("Updated "); debugPrintln(fileName);
+            }
+            break;
+        }
+        case PROP_POWER_CONSUMPTION: {
+            getHeaterPropertyFilename(heaterNum, "powerConsumption", fileName);
+            uint16_t currentValue = 0;
+            if (LittleFS.exists(fileName)) {
+                File file = LittleFS.open(fileName, FILE_READ);
+                currentValue = file.parseInt();
+                file.close();
+            }
+            uint16_t newValue = heaterItem.getPowerConsumption();
+            if (currentValue != newValue) {
+                File file = LittleFS.open(fileName, FILE_WRITE);
+                file.print(newValue);
+                file.close();
+                debugPrint("Updated "); debugPrintln(fileName);
+            }
+            break;
+        }
+        case PROP_PRIORITY: {
+            getHeaterPropertyFilename(heaterNum, "priority", fileName);
+            uint8_t currentValue = 100;
+            if (LittleFS.exists(fileName)) {
+                File file = LittleFS.open(fileName, FILE_READ);
+                currentValue = file.parseInt();
+                file.close();
+            }
+            uint8_t newValue = heaterItem.getPriority();
+            if (currentValue != newValue) {
+                File file = LittleFS.open(fileName, FILE_WRITE);
+                file.print(newValue);
+                file.close();
+                debugPrint("Updated "); debugPrintln(fileName);
+            }
+            break;
+        }
+        case PROP_TARGET_TEMPERATURE: {
+            getHeaterPropertyFilename(heaterNum, "targetTemperature", fileName);
+            float currentValue = 0.0f;
+            if (LittleFS.exists(fileName)) {
+                File file = LittleFS.open(fileName, FILE_READ);
+                currentValue = file.parseFloat();
+                file.close();
+            }
+            float newValue = heaterItem.getTargetTemperature();
+            if (abs(currentValue - newValue) > 0.01f) {  // Float comparison with epsilon
+                File file = LittleFS.open(fileName, FILE_WRITE);
+                file.print(newValue);
+                file.close();
+                debugPrint("Updated "); debugPrintln(fileName);
+            }
+            break;
+        }
+        case PROP_TEMPERATURE_ADJUST: {
+            getHeaterPropertyFilename(heaterNum, "temperatureAdjust", fileName);
+            float currentValue = 0.0f;
+            if (LittleFS.exists(fileName)) {
+                File file = LittleFS.open(fileName, FILE_READ);
+                currentValue = file.parseFloat();
+                file.close();
+            }
+            float newValue = heaterItem.getTemperatureAdjust();
+            if (abs(currentValue - newValue) > 0.01f) {  // Float comparison with epsilon
+                File file = LittleFS.open(fileName, FILE_WRITE);
+                file.print(newValue);
+                file.close();
+                debugPrint("Updated "); debugPrintln(fileName);
+            }
+            break;
+        }
+        case PROP_USE_EXTERNAL_SENSOR: {
+            getHeaterPropertyFilename(heaterNum, "useExternalSensor", fileName);
+            bool currentValue = false;
+            if (LittleFS.exists(fileName)) {
+                File file = LittleFS.open(fileName, FILE_READ);
+                currentValue = file.parseInt() != 0;
+                file.close();
+            }
+            bool newValue = heaterItem.getUseExternalSensor();
+            if (currentValue != newValue) {
+                File file = LittleFS.open(fileName, FILE_WRITE);
+                file.print(newValue ? "1" : "0");
+                file.close();
+                debugPrint("Updated "); debugPrintln(fileName);
+            }
+            break;
+        }
+        case PROP_EXTERNAL_SENSOR_TOPIC: {
+            getHeaterPropertyFilename(heaterNum, "externalSensorTopic", fileName);
+            String currentValue = "";
+            if (LittleFS.exists(fileName)) {
+                File file = LittleFS.open(fileName, FILE_READ);
+                currentValue = file.readString();
+                file.close();
+            }
+            String newValue = String(heaterItem.getExternalSensorTopic());
+            if (currentValue != newValue) {
+                File file = LittleFS.open(fileName, FILE_WRITE);
+                file.print(newValue);
+                file.close();
+                debugPrint("Updated "); debugPrintln(fileName);
+            }
+            break;
+        }
+    }
 }
 
 void loadSettings(Settings& settings) {
@@ -1421,53 +1661,123 @@ void deleteSettings() {
     String fileName;
     getSettingsFilename(fileName);
     LittleFS.remove(fileName);
+    
+    // Delete property files
     for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-        String fileName;
-        getItemFilename(i, fileName);
-        if (LittleFS.exists(fileName)) {
-            debugPrint("Deleting settings for ");debugPrint(fileName);debugPrintln(".");
-            LittleFS.remove(fileName);
+        const char* properties[] = {"name", "subtopic", "isEnabled", "sensorAddress", "port", 
+                                   "phase", "isAuto", "powerConsumption", "priority", 
+                                   "targetTemperature", "temperatureAdjust", "useExternalSensor", 
+                                   "externalSensorTopic"};
+        for (int j=0; j<13; j++) {
+            getHeaterPropertyFilename(i, properties[j], fileName);
+            if (LittleFS.exists(fileName)) {
+                debugPrint("Deleting property file ");debugPrint(fileName);debugPrintln(".");
+                LittleFS.remove(fileName);
+            }
         }
     }
 }
 
 void loadState(HeaterItem& heaterItem) {
+    uint8_t heaterNum = heaterItem.getAddress();
     String fileName;
-    getItemFilename(heaterItem.getAddress(), fileName);
-    if(!LittleFS.exists(fileName)) {
-        setDefaults(heaterItem);
+    
+    // Load from individual property files
+    getHeaterPropertyFilename(heaterNum, "name", fileName);
+    if (LittleFS.exists(fileName)) {
+        File file = LittleFS.open(fileName, FILE_READ);
+        heaterItem.setName(file.readString());
+        file.close();
     }
-    else {
-        File file = LittleFS.open(fileName, FILE_READ, true);    
-
-        StaticJsonDocument<JSON_DOCUMENT_SIZE> doc;
-        deserializeJson(doc, file);
-
-        heaterItem.setName(doc["name"].as<String>());
-        heaterItem.setAddress(doc["address"].as<uint8_t>());
-        heaterItem.setSubtopic(doc["subtopic"].as<String>());
-        heaterItem.setIsEnabled(doc["isEnabled"].as<bool>());
-        JsonArray sensorAddress = doc["sensorAddress"];
-        byte addr[SENSOR_ADDR_LEN];
-        for (uint8_t i=0; i<SENSOR_ADDR_LEN; i++) {
-            addr[i] = sensorAddress.getElement(i).as<byte>();
+    
+    getHeaterPropertyFilename(heaterNum, "subtopic", fileName);
+    if (LittleFS.exists(fileName)) {
+        File file = LittleFS.open(fileName, FILE_READ);
+        heaterItem.setSubtopic(file.readString());
+        file.close();
+    }
+    
+    getHeaterPropertyFilename(heaterNum, "isEnabled", fileName);
+    if (LittleFS.exists(fileName)) {
+        File file = LittleFS.open(fileName, FILE_READ);
+        heaterItem.setIsEnabled(file.parseInt() != 0);
+        file.close();
+    }
+    
+    getHeaterPropertyFilename(heaterNum, "sensorAddress", fileName);
+    if (LittleFS.exists(fileName)) {
+        File file = LittleFS.open(fileName, FILE_READ);
+        String addrStr = file.readString();
+        file.close();
+        if (addrStr.length() > 0) {
+            heaterItem.setSensorAddress(addrStr.c_str());
         }
-        heaterItem.setSensorAddress(addr);
-        heaterItem.setPort(doc["port"].as<uint8_t>());
-        heaterItem.setPhase(doc["phase"].as<uint8_t>());
-
-        heaterItem.setPowerConsumption(doc["powerConsumption"].as<uint16_t>());
-        heaterItem.setWantsOn(doc["isOn"].as<bool>());
-        heaterItem.setPriority(doc["priority"].as<uint8_t>());
-        heaterItem.setTargetTemperature(doc["targetTemperature"].as<float>());
-        heaterItem.setTemperatureAdjust(doc["temperatureAdjust"].as<float>());
-        heaterItem.setIsAuto(doc["isAuto"].as<bool>());
-        if (doc.containsKey("useExternalSensor")) {
-            heaterItem.setUseExternalSensor(doc["useExternalSensor"].as<bool>());
+    }
+    
+    getHeaterPropertyFilename(heaterNum, "port", fileName);
+    if (LittleFS.exists(fileName)) {
+        File file = LittleFS.open(fileName, FILE_READ);
+        heaterItem.setPort(file.parseInt());
+        file.close();
+    }
+    
+    getHeaterPropertyFilename(heaterNum, "phase", fileName);
+    if (LittleFS.exists(fileName)) {
+        File file = LittleFS.open(fileName, FILE_READ);
+        heaterItem.setPhase(file.parseInt());
+        file.close();
+    }
+    
+    getHeaterPropertyFilename(heaterNum, "isAuto", fileName);
+    if (LittleFS.exists(fileName)) {
+        File file = LittleFS.open(fileName, FILE_READ);
+        heaterItem.setIsAuto(file.parseInt() != 0);
+        file.close();
+    }
+    
+    getHeaterPropertyFilename(heaterNum, "powerConsumption", fileName);
+    if (LittleFS.exists(fileName)) {
+        File file = LittleFS.open(fileName, FILE_READ);
+        heaterItem.setPowerConsumption(file.parseInt());
+        file.close();
+    }
+    
+    getHeaterPropertyFilename(heaterNum, "priority", fileName);
+    if (LittleFS.exists(fileName)) {
+        File file = LittleFS.open(fileName, FILE_READ);
+        heaterItem.setPriority(file.parseInt());
+        file.close();
+    }
+    
+    getHeaterPropertyFilename(heaterNum, "targetTemperature", fileName);
+    if (LittleFS.exists(fileName)) {
+        File file = LittleFS.open(fileName, FILE_READ);
+        heaterItem.setTargetTemperature(file.parseFloat());
+        file.close();
+    }
+    
+    getHeaterPropertyFilename(heaterNum, "temperatureAdjust", fileName);
+    if (LittleFS.exists(fileName)) {
+        File file = LittleFS.open(fileName, FILE_READ);
+        heaterItem.setTemperatureAdjust(file.parseFloat());
+        file.close();
+    }
+    
+    getHeaterPropertyFilename(heaterNum, "useExternalSensor", fileName);
+    if (LittleFS.exists(fileName)) {
+        File file = LittleFS.open(fileName, FILE_READ);
+        heaterItem.setUseExternalSensor(file.parseInt() != 0);
+        file.close();
+    }
+    
+    getHeaterPropertyFilename(heaterNum, "externalSensorTopic", fileName);
+    if (LittleFS.exists(fileName)) {
+        File file = LittleFS.open(fileName, FILE_READ);
+        String topic = file.readString();
+        if (topic.length() > 0) {
+            heaterItem.setExternalSensorTopic(topic.c_str());
         }
-        if (doc.containsKey("externalSensorTopic")) {
-            heaterItem.setExternalSensorTopic(doc["externalSensorTopic"].as<const char*>());
-        }
+        file.close();
     }
 }
 
@@ -1554,7 +1864,7 @@ void processSettingsForm(AsyncWebServerRequest* request) {
         heaterItems[itemNo].setExternalSensorTopic(request->getParam("externalSensorTopic", true)->value().c_str());
     }
 
-    saveState(heaterItems[itemNo]);
+    saveState(heaterItems[itemNo], PROP_ALL);
     subscribeToExternalSensors();
     request->send(LittleFS, "/settings.html", String(), false, webServerPlaceholderProcessor);
     if (xSemaphoreTake(mutex, portMAX_DELAY)) {
@@ -1615,7 +1925,7 @@ void processControlForm(AsyncWebServerRequest* request) {
         }
     }
 
-    saveState(heaterItems[itemNo]);
+    saveState(heaterItems[itemNo], PROP_ALL);
     request->send(LittleFS, "/control.html", String(), false, webServerPlaceholderProcessor);
     if (xSemaphoreTake(mutex, portMAX_DELAY)) {
         processHeaters();
@@ -2257,10 +2567,8 @@ void setup()
     WiFi.onEvent(WiFiEvent);
     ETH.begin(ETH_ADDR, ETH_POWER_PIN, ETH_MDC_PIN, ETH_MDIO_PIN, ETH_TYPE, ETH_CLK_MODE);
 
-    if (!LittleFS.begin(true)) {
-        Serial.println("An Error has occurred while mounting SPIFFS");
-        return;
-    }
+    fileManager.begin();
+    fileManager.setServer(&server);
 
     //init settings
     loadSettings(settings);
@@ -2373,6 +2681,16 @@ void setup()
     server.on("/backup", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(LittleFS, "/backup.html", String(), false, webServerPlaceholderProcessor);
     });
+    
+    server.on("/heaters/*", HTTP_GET, [](AsyncWebServerRequest* request) {
+        String path = request->url();
+        if (LittleFS.exists(path)) {
+            request->send(LittleFS, path, "text/plain");
+        } else {
+            request->send(404, "text/plain", "File not found");
+        }
+    });
+    
     server.on("/debug", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(LittleFS, "/debug.html", String(), false, webServerPlaceholderProcessor);
     });
