@@ -1137,24 +1137,6 @@ String webServerPlaceholderProcessor(const String& placeholder) {
             retValue += "\"></td></tr>";
         }
     }
-    if (placeholder.equals("BACKUP_ITEM_FILE")) {
-        for (uint8_t i=0; i<NUMBER_OF_HEATERS; i++) {
-            String fileName;
-            getItemFilename(i, fileName);
-            if (LittleFS.exists(fileName)) {
-                retValue += "<label><p style=\"line-height: 1.8;\"><input type=\"checkbox\" data-url=\"";
-                retValue += fileName;
-                retValue += "\" checked>";
-                retValue += fileName;
-                if (heaterItems[i].getName().length() > 0) {
-                    retValue += " (";
-                    retValue += heaterItems[i].getName();
-                    retValue += ")";
-                }
-                retValue += "</p></label>";
-            }
-        }
-    }
     if (placeholder.equals("UNCONFIGURED")) {
         for (uint8_t i=0; i<unconfiguredSensorsCount; i++) {
             String sensor;
@@ -2698,6 +2680,16 @@ void setup()
     server.on("/backup", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(LittleFS, "/backup.html", String(), false, webServerPlaceholderProcessor);
     });
+    
+    server.on("/heaters/*", HTTP_GET, [](AsyncWebServerRequest* request) {
+        String path = request->url();
+        if (LittleFS.exists(path)) {
+            request->send(LittleFS, path, "text/plain");
+        } else {
+            request->send(404, "text/plain", "File not found");
+        }
+    });
+    
     server.on("/debug", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(LittleFS, "/debug.html", String(), false, webServerPlaceholderProcessor);
     });
