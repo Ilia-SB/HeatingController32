@@ -2719,21 +2719,6 @@ void setup()
         }
     });
 
-    server.on("/files", HTTP_GET, [](AsyncWebServerRequest* request) {
-        String html;
-        File root = LittleFS.open("/");
-        File file = root.openNextFile();
- 
-        while(file){
-            html += "<a href=\"";
-            html += file.name();
-            html += "\">";
-            html += file.name();
-            html += "</a><br>";
-            file = root.openNextFile();
-        }
-        request->send(200, "text/html", html);
-    });
 
     server.onNotFound([](AsyncWebServerRequest* request) {
         int pos = request->url().lastIndexOf("/");
