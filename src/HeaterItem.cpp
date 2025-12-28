@@ -50,10 +50,7 @@ float HeaterItem::getTemperature() {
 }
 
 float HeaterItem::getSensorTemperature() {
-	if (isExternalSensorActive()) {
-		return externalSensorTemperature;
-	}
-	return sensorTemperature + temperatureAdjust;
+	return adjustedTemperature;
 }
 
 float HeaterItem::getRawSensorTemperature() {
